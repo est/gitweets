@@ -1,9 +1,11 @@
-.PHONY: go everybody post refresh repost timeline
+.PHONY: go
 
-everybody:
-	./follow-everybody.bash
-
-go: everybody refresh timeline
+go:
+	@echo "usage:"
+	@echo "  make post 'my tweet here'"
+	@echo "  make refresh  # get all tweets"
+	@echo "  make repost"
+	@echo "  make timeline # show my timeline"
 
 post:
 	git commit -m $(p) --allow-empty
