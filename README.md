@@ -32,4 +32,7 @@ make post "blah"
 
 ## 待办 ToDo:
 
-- [ ] [verifications](https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification)
+- [X] [verifications](https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification)
+- [ ] 用 blob API 发图
+- [ ] non-github API 支持：gitlab等
+- [ ] 本地 make 静态页面

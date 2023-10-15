@@ -1,7 +1,7 @@
 <!DOCTYPE html><html lang="en">
 <head>
 	<meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>Gitweets</title>
 	<style>
 		body {
@@ -9,7 +9,7 @@
 		}
 		.timeline {
 			flex-direction: column;
-			width: 60em;
+			width: 40em;
 			margin: 0 auto;
 			padding: 1rem;
 			border: 1px solid #ccc;
@@ -18,7 +18,7 @@
 			display: flex;
 			margin-bottom: 1em;
 		}
-		.tweet > .avatar {
+		.tweet .avatar {
 			margin-right: 1rem;
 			width: 48px;
 			height: 48px;
@@ -28,14 +28,19 @@
 			font-size: 16px;
 			font-weight: bold;
 		}
+		.tweet .verified {
+			color: blue;
+		}
 		.tweet .datetime {
 			color:grey; font-size: 0.8em;
+			text-decoration: none;
 		}
 		.tweet .tweet-content {
 			max-height: 10rem;
 			text-overflow: ellipsis;
+			overflow-wrap: break-word;
 			overflow-y: scroll;
-			margin: 1em 0 1em 0;
+			color: #555;
 		}
 		.tweet .tweet-content > pre {
 			font-family: inherit;
@@ -44,27 +49,41 @@
 
 	</style>
 </head>
-<body onload="render_from_github()">
+<body onload="load_timeline()">
 	<div class="timeline" id="timeline">
 		<div id="status">Loading...</div>
 	</div>
 	<script>
-		''.__proto__._html = function(){
-			return this.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')}
-		async function render_from_github(){
+		const sh=(s)=>s.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')  // safe html
+		function render(o){
+			return `
+		<div class="tweet">
+			<a href="/${encodeURI(o.author_slug)}"><img class="avatar" src="${encodeURI(o.author_avatar)}"></a>
+			<div>
+				<span class="username${o.author_verified?' verified':''}">${sh(o.author_name)}</span>
+				<div class="tweet-content"><pre>${sh(o.message)}</pre></div>
+				<a class="datetime" href="/${encodeURI(o.author_slug)}/${encodeURI(o.id)}">${sh(
+					new Date(o.date.getTime() - o.date.getTimezoneOffset()*60*1000).toISOString().replace('T', ' ').split('.')[0])
+				}</a>
+			</div>
+		</div>
+		  `}
+		async function load_timeline(){
 			const data = await (await fetch(
+				// put your API here
 				'https://api.github.com/repos/est/gitweets/commits'
 			)).json()
-			status = 
-			timeline.querySelector('#status').hidden = true
-			data.forEach((item)=>timeline.insertAdjacentHTML('beforeend', `
-		<div class="tweet">
-			<img class="avatar" src="${item.author.avatar_url._html()}"><div>
-			<span class="username">${item.author.login._html()}</span>
-			<div class="tweet-content"><pre>${item.commit.message._html()}</pre></div>
-			<div class="datetime">${item.commit.author.date._html()}</div>
-		</div></div>
-			`))
+			timeline.querySelector('#status').remove()
+			// format: https://docs.github.com/en/rest/commits/commits
+			data.forEach((item)=>timeline.insertAdjacentHTML('beforeend', render({
+				id: item.sha,
+				author_avatar: item.author.avatar_url,
+				author_slug: item.author.login,
+				author_verified: item.commit.verification?.verified,
+				author_name: item.commit.author.name,
+				message: item.commit.message,
+				date: new Date(item.commit.author.date),
+			})))
 		}
 	</script>
 </body>
