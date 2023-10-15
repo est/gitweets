@@ -1,0 +1,71 @@
+<!DOCTYPE html><html lang="en">
+<head>
+	<meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Gitweets</title>
+	<style>
+		body {
+			font-family: sans-serif;
+		}
+		.timeline {
+			flex-direction: column;
+			width: 60em;
+			margin: 0 auto;
+			padding: 1rem;
+			border: 1px solid #ccc;
+		}
+		.tweet {
+			display: flex;
+			margin-bottom: 1em;
+		}
+		.tweet > .avatar {
+			margin-right: 1rem;
+			width: 48px;
+			height: 48px;
+			border-radius: 50%;
+		}
+		.tweet .username {
+			font-size: 16px;
+			font-weight: bold;
+		}
+		.tweet .datetime {
+			color:grey; font-size: 0.8em;
+		}
+		.tweet .tweet-content {
+			max-height: 10rem;
+			text-overflow: ellipsis;
+			overflow-y: scroll;
+			margin: 1em 0 1em 0;
+		}
+		.tweet .tweet-content > pre {
+			font-family: inherit;
+			margin: 0;
+		}
+
+	</style>
+</head>
+<body onload="render_from_github()">
+	<div class="timeline" id="timeline">
+		<div id="status">Loading...</div>
+	</div>
+	<script>
+		''.__proto__._html = function(){
+			return this.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')}
+		async function render_from_github(){
+			const data = await (await fetch(
+				'https://api.github.com/repos/est/gitweets/commits'
+			)).json()
+			status = 
+			timeline.querySelector('#status').hidden = true
+			data.forEach((item)=>timeline.insertAdjacentHTML('beforeend', `
+		<div class="tweet">
+			<img class="avatar" src="${item.author.avatar_url._html()}"><div>
+			<span class="username">${item.author.login._html()}</span>
+			<div class="tweet-content"><pre>${item.commit.message._html()}</pre></div>
+			<div class="datetime">${item.commit.author.date._html()}</div>
+		</div></div>
+			`))
+		}
+	</script>
+</body>
+</html>
