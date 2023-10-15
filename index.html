@@ -53,14 +53,12 @@
 			line-height: 0;
 		}
 		.tweet .tweet-content img {
-/*			max-height: 20rem;*/
-width: 100%;
+			width: 100%;
 		}
 		.tweet .tweet-content pre {
 			max-width: 40em;
 			font-family: inherit;
 			margin: 0;
-			white-space: pre-wrap;
 			overflow-wrap: break-word;
 			overflow-y: scroll;
 			color: #555;
@@ -82,19 +80,36 @@ width: 100%;
 			<div>
 				<span class="username${o.author_verified?' verified':''}">${sh(o.author_name)}</span>
 				<div class="tweet-content">
-				  <pre>${sh(o.message)}</pre>
+				  <pre style="${o.message.length>1024?'font:12px monospace':''}">${sh(o.message)}</pre>
 				  <ul class="medias"></ul>
 				</div>
 				<a class="datetime" href="/${encodeURI(o.author_slug)}/${encodeURI(o.id)}">${sh(sd(o.date))}</a>
 			</div>
 		</div>
 		  `}
-		async function load_timeline(){
-			const data = await (await fetch(
-				// put your API here
-				'https://api.github.com/repos/est/gitweets/commits'
-			)).json()
-			timeline.querySelector('#status').remove()
+		async function load_timeline(page){
+			// modify your API here
+			const GITHUB_API = 'https://api.github.com/repos/est/gitweets/commits'
+			const params = {}
+			if(page)
+				params.page = page
+			const m = /^\/(\w+)(?:\/([0-9a-fA-F]{40}))?/.exec(location.pathname)
+			if (m && m.length == 3 && m[2])
+				params.sha = m[2]
+			if (m && m.length >  1)
+				params.author = m[1]
+
+			var data;
+			if (params.sha){
+				data = [await (await fetch(GITHUB_API+'/'+params.sha)).json()]
+			}
+			else{
+				data = await (await fetch(GITHUB_API+'?'+new URLSearchParams(params).toString())).json()
+			}
+			if(data.length)
+				timeline.querySelector('#status').remove()
+			else
+				timeline.querySelector('#status').innerText='No data'
 			// format: https://docs.github.com/en/rest/commits/commits
 			const media_ids = []
 			data.forEach(item=>{
@@ -112,7 +127,7 @@ width: 100%;
 				}))
 			})
 			media_ids.forEach(async function(id){
-				const url = 'https://api.github.com/repos/est/gitweets/commits/'+id
+				const url = GITHUB_API+'/'+id
 				// console.info(url)
 				const r = await (await fetch(url)).json()
 				const media_files = []

@@ -31,10 +31,10 @@ This is @est's fork of Yan's janky twitter replacement.
 ## 待办 ToDo:
 
 * [X] ~~[verifications](https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification)~~
-* [ ] 404.html for single-page-app routing
-* [ ] 多媒体支持
-  * [X] ~~用 blob API 发图~~
-  * [ ] 多图 flexbox 布局
+* [X] 404.html for single-page-app routing
+* [X] ~~用 blob API 发图~~
+* [X] 多图 flexbox 布局
+* [ ] 视频、音频控件
 * [ ] 网址 microformats 支持卡片
 * [ ] non-github API 支持：gitlab等
 * [ ] 本地 make 静态页面
