@@ -34,9 +34,11 @@ This is @est's fork of Yan's janky twitter replacement.
 * [X] 404.html for single-page-app routing
 * [X] ~~用 blob API 发图~~
 * [X] 多图 flexbox 布局
+* [ ] 移动端响应式布局 🤣
 * [ ] 视频、音频控件
 * [ ] 网址 microformats 支持卡片
 * [ ] non-github API 支持：gitlab等
 * [ ] 本地 make 静态页面
 * [ ] `make delete` 方法
 * [ ] fix long text
+* [ ] 翻页 API

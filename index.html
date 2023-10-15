@@ -36,10 +36,12 @@
 			color:grey; font-size: 0.8em;
 			text-decoration: none;
 		}
+		.tweet .tweet-content {
+			max-width: 50em;
+		}
 		.tweet .tweet-content .medias {
 			display: flex;
 			flex-wrap: wrap;
-			max-width: 40em;
 
 			margin-collapse: collapse;
 			list-style-type: none;
@@ -56,7 +58,6 @@
 			width: 100%;
 		}
 		.tweet .tweet-content pre {
-			max-width: 40em;
 			font-family: inherit;
 			margin: 0;
 			overflow-wrap: break-word;
@@ -71,8 +72,10 @@
 		<div id="status">Loading...</div>
 	</div>
 	<script>
-		const sh=s=>s.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')  // safe html
-		const sd=d=>new Date(d.getTime() - d.getTimezoneOffset()*60_000).toISOString().replace('T', ' ').split('.')[0] // show date
+		// safe html
+		const sh=s=>s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')  
+		// show date
+		const sd=d=>new Date(d.getTime() - d.getTimezoneOffset()*60_000).toISOString().replace('T', ' ').split('.')[0]
 		function render(o){
 			return `
 		<div class="tweet" id="post-${encodeURI(o.id)}">
@@ -93,7 +96,7 @@
 			const params = {}
 			if(page)
 				params.page = page
-			const m = /^\/(\w+)(?:\/([0-9a-fA-F]{40}))?/.exec(location.pathname)
+			const m = /^\/(\w+)(?:\/([0-9a-fA-F]{40}))?$/.exec(location.pathname)
 			if (m && m.length == 3 && m[2])
 				params.sha = m[2]
 			if (m && m.length >  1)
@@ -113,7 +116,7 @@
 			// format: https://docs.github.com/en/rest/commits/commits
 			const media_ids = []
 			data.forEach(item=>{
-				if(/(：|:)/.exec(item.commit.message.trim().slice(-1))){
+				if(!item.files && /(：|:)/.exec(item.commit.message.trim().slice(-1))){
 					media_ids.push(item.sha)
 				}
 				timeline.insertAdjacentHTML('beforeend', render({
@@ -127,17 +130,15 @@
 				}))
 			})
 			media_ids.forEach(async function(id){
-				const url = GITHUB_API+'/'+id
-				// console.info(url)
-				const r = await (await fetch(url)).json()
-				const media_files = []
+				const r = await (await fetch(GITHUB_API+'/'+id)).json()
+				const imgs = []
 				r.files.forEach(file=>{
 					if (/^static\/.+(.webp|.jpg|.jpeg|.png|.gif|.jxl|.avif)$/.exec(file.filename)) {
-						media_files.push(`<li><img src="${file.raw_url}"></li>`);
+						imgs.push(`<li><img src="${file.raw_url}"></li>`);
 
 				}})
 				timeline.querySelector('.tweet#post-'+id+' .tweet-content .medias').insertAdjacentHTML(
-					'beforeend', media_files.join('\n'))
+					'beforeend', imgs.join('\n'))
 			})
 		}
 	</script>
