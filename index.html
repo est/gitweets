@@ -55,6 +55,7 @@
 	</div>
 	<script>
 		const sh=(s)=>s.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')  // safe html
+		const sd=(d)=>new Date(d.getTime() - d.getTimezoneOffset()*60*1000).toISOString().replace('T', ' ').split('.')[0] // show date
 		function render(o){
 			return `
 		<div class="tweet">
@@ -62,9 +63,7 @@
 			<div>
 				<span class="username${o.author_verified?' verified':''}">${sh(o.author_name)}</span>
 				<div class="tweet-content"><pre>${sh(o.message)}</pre></div>
-				<a class="datetime" href="/${encodeURI(o.author_slug)}/${encodeURI(o.id)}">${sh(
-					new Date(o.date.getTime() - o.date.getTimezoneOffset()*60*1000).toISOString().replace('T', ' ').split('.')[0])
-				}</a>
+				<a class="datetime" href="/${encodeURI(o.author_slug)}/${encodeURI(o.id)}">${sh(sd(o.date))}</a>
 			</div>
 		</div>
 		  `}
