@@ -9,7 +9,7 @@
 		}
 		#timeline {
 			flex-direction: column;
-			width: 45rem;
+			max-width: 45rem;
 			margin: 0 auto;
 			padding: 1rem;
 			border: 1px solid #ccc;
@@ -36,14 +36,28 @@
 			color:grey; font-size: 0.8em;
 			text-decoration: none;
 		}
-		.tweet .tweet-content {
-/*			max-height: 10rem;*/
+		.tweet .tweet-content .medias {
+			display: flex;
+			flex-wrap: wrap;
+			max-width: 40em;
+
+			margin-collapse: collapse;
+			list-style-type: none;
+	    margin: 0;
+	    padding-inline: 0;
+		}
+		.tweet .tweet-content li {
+			margin-collapse: collapse;
+			margin: 0 0.5rem 0.5rem 0;
+			flex-basis: 48%;
+			line-height: 0;
 		}
 		.tweet .tweet-content img {
-			width: 100%;
+/*			max-height: 20rem;*/
+width: 100%;
 		}
 		.tweet .tweet-content pre {
-			width: 40em;
+			max-width: 40em;
 			font-family: inherit;
 			margin: 0;
 			white-space: pre-wrap;
@@ -63,11 +77,14 @@
 		const sd=d=>new Date(d.getTime() - d.getTimezoneOffset()*60_000).toISOString().replace('T', ' ').split('.')[0] // show date
 		function render(o){
 			return `
-		<div class="tweet">
+		<div class="tweet" id="post-${encodeURI(o.id)}">
 			<a href="/${encodeURI(o.author_slug)}"><img class="avatar" src="${encodeURI(o.author_avatar)}"></a>
 			<div>
 				<span class="username${o.author_verified?' verified':''}">${sh(o.author_name)}</span>
-				<div class="tweet-content" id="post-${encodeURI(o.id)}"><pre>${sh(o.message)}</pre></div>
+				<div class="tweet-content">
+				  <pre>${sh(o.message)}</pre>
+				  <ul class="medias"></ul>
+				</div>
 				<a class="datetime" href="/${encodeURI(o.author_slug)}/${encodeURI(o.id)}">${sh(sd(o.date))}</a>
 			</div>
 		</div>
@@ -94,17 +111,18 @@
 					date: new Date(item.commit.author.date),
 				}))
 			})
-
 			media_ids.forEach(async function(id){
 				const url = 'https://api.github.com/repos/est/gitweets/commits/'+id
-				console.info(url)
+				// console.info(url)
 				const r = await (await fetch(url)).json()
+				const media_files = []
 				r.files.forEach(file=>{
 					if (/^static\/.+(.webp|.jpg|.jpeg|.png|.gif|.jxl|.avif)$/.exec(file.filename)) {
-						timeline.querySelector('.tweet-content#post-' + id).insertAdjacentHTML('beforeend', `
-							<img src="${file.raw_url}">
-				    `)}
-				})
+						media_files.push(`<li><img src="${file.raw_url}"></li>`);
+
+				}})
+				timeline.querySelector('.tweet#post-'+id+' .tweet-content .medias').insertAdjacentHTML(
+					'beforeend', media_files.join('\n'))
 			})
 		}
 	</script>
