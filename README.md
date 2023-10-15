@@ -32,7 +32,9 @@ make post "blah"
 
 ## 待办 ToDo:
 
-- [X] [verifications](https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification)
-- [ ] 用 blob API 发图
+- [X] ~~[verifications](https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification)~~
+- [ ] 404.html for single-page-app routing
+- [X] ~~用 blob API 发图~~ 只有 `:` 结尾的帖子才会调用发图 API。
 - [ ] non-github API 支持：gitlab等
 - [ ] 本地 make 静态页面
+- [ ] `make delete` 方法
