@@ -42,7 +42,7 @@ This is @est's fork of Yan's janky twitter replacement.
   * [X] ~~[scope](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps)~~
   * [X] ~~[star](https://docs.github.com/en/rest/activity/starring?apiVersion=2022-11-28#) it~~
   * [X] ~~[rate limit](https://docs.github.com/en/rest/overview/rate-limits-for-the-rest-api?apiVersion=2022-11-28#primary-rate-limit-for-oauth-apps)
-  * [ ] fork it
+  * [X] ~~fork it~~
   * [ ] [join org](https://docs.github.com/en/rest/orgs/members)
   * [ ] make commit
   * [ ] create [pull request](https://docs.github.com/en/rest/pulls/pulls)

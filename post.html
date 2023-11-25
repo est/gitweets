@@ -69,17 +69,98 @@ async function loader() {
     },
     try_fork: async function(){
       const r = await this.call_api('https://api.github.com/repos/'+this.REPO+'/forks', {name: 'gitweets'})
-      if (r.status == 202) document.write('Fork'+this.REPO+' success<br>')
+      if (r.status == 202) document.write('Fork '+this.REPO+' success<br>')
+      return await r.json()
+    },
+    find_messages: async function(){
+      `{
+        repository(owner: "est", name: "gitweets") {
+          defaultBranchRef {
+            target {
+              ... on Commit {
+                history(first: 12) {
+                  nodes {
+                    ... on Commit {
+                      committedDate
+                      message
+                      changedFilesIfAvailable
+                      file(path:"static"){
+                        path
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }`
+    },
+    find_fork_oid: async function(){
+      /*
+        query {
+          repositoryOwner(login:"est"){
+            repositories(first:100,isFork:true){
+              nodes{
+                nameWithOwner
+                parent {
+                  nameWithOwner
+                }
+              }
+            }
+          }
+        }
+      */
+      const r = await this.call_api('https://api.github.com/graphql', {query: `{
+        viewer {
+          repositories(first: 100, isFork: true) {
+            nodes {
+              nameWithOwner
+              defaultBranchRef{
+                target{
+                  oid
+                }
+              }
+              parent {
+                nameWithOwner
+                defaultBranchRef{
+                  target{
+                    oid
+                  }
+                }
+              }
+            }
+          }
+        }
+      }`})
+      const ret = await r.json()
+      for (const repo of ret.data.viewer.repositories.nodes){
+        if(repo.parent.nameWithOwner===this.REPO){
+          return [repo.nameWithOwner, repo.defaultBranchRef.target.oid]
+        }
+      }
+    },
+    make_commit: async function(repo, parent_oid, msg, file){
+      const r = await this.call_api('https://api.github.com/repos/'+repo+'/git/commits', {
+        "message": msg,
+        // "author": {
+        //   "name": "est",
+        //   "email": "electronicstar@1",
+        //   "date": "2008-07-09T16:13:30+12:00"},
+        "parents": [parent_oid],
+        "tree": '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
+      })
       return await r.json()
     }
   }
   if(await Github.refresh_access_token()){
     // await Github.try_star('cloudcolonizer/pioneers')
-    const repos = (await Github.call_api('https://api.github.com/user/repos')).json()
-    await Github.try_fork()
+    // await Github.try_fork()
+    // const repos = (await Github.call_api('https://api.github.com/user/repos')).json()
+    const [repo, oid] = (await Github.find_fork_oid())
+    await Github.make_commit(repo, oid, 'haha')
   }
 }
-  
 </script>
 </body>
 </html>
