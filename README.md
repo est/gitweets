@@ -28,36 +28,29 @@ This is @est's fork of Yan's janky twitter replacement.
 * 发文本 posting text: `make post "blah"`
 * 发图片 posting pics: `make post "some pics:" static/2023/1015-01.webp`
 
-## OAuth with github
-
-https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps
-https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps
-https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/refreshing-user-access-tokens
-https://docs.github.com/en/rest/overview/authenticating-to-the-rest-api
-
-
-https://docs.github.com/en/rest/activity/starring?apiVersion=2022-11-28#star-a-repository-for-the-authenticated-user
-https://docs.github.com/en/rest/pulls/pulls?apiVersion=2022-11-28#create-a-pull-request
-
-
-https://github.com/organizations/CloudColonizer/settings/applications/2352861
-https://github.com/login/oauth/authorize?client_id=822bbd6320f8bae0de63
-
-https://docs.github.com/en/rest/orgs/members?apiVersion=2022-11-28#create-an-organization-invitation
-
 ## 待办 ToDo:
 
 * [X] ~~[verifications](https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification)~~
 * [X] ~~404.html for single-page-app routing~~
 * [X] ~~用 blob API 发图~~
 * [X] ~~多图 flexbox 布局~~  玩不动了。就酱
-* [ ] login with Github
-* [ ] Cloudflare [Pages with Functions](https://developers.cloudflare.com/pages/platform/functions/get-started/)
+* [X] ~~login with Github~~
+  * [X] ~~[app](https://github.com/organizations/CloudColonizer/settings/applications/2352861)~~
+  * [X] ~~[Web page login](https://github.com/login/oauth/authorize?client_id=822bbd6320f8bae0de63) [doc]](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps), [client_id/client_secret](https://docs.github.com/en/rest/overview/authenticating-to-the-rest-api)~~
+  * [X] ~~Cloudflare [Pages with Functions](https://developers.cloudflare.com/pages/platform/functions/get-started/) 解决 CORS~~
+* [ ] post with Github
+  * [X] ~~[scope](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps)~~
+  * [X] ~~[star](https://docs.github.com/en/rest/activity/starring?apiVersion=2022-11-28#) it~~
+  * [X] ~~[rate limit](https://docs.github.com/en/rest/overview/rate-limits-for-the-rest-api?apiVersion=2022-11-28#primary-rate-limit-for-oauth-apps)
+  * [ ] fork it
+  * [ ] [join org](https://docs.github.com/en/rest/orgs/members)
+  * [ ] make commit
+  * [ ] create [pull request](https://docs.github.com/en/rest/pulls/pulls)
 * [ ] 移动端响应式布局 🤣
+* [ ] fix long text
+* [ ] 翻页 API
 * [ ] 视频、音频控件
 * [ ] 网址 microformats 支持卡片
 * [ ] non-github API 支持：gitlab等
-* [ ] 本地 make 静态页面
+* [ ] 本地 `make` 生成 .json 静态页面
 * [ ] `make delete` 方法
-* [ ] fix long text
-* [ ] 翻页 API

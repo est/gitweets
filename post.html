@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>login to gitweet</title>
+</head>
+<body onload="loader()">
+
+<script type="text/javascript">
+async function loader() {
+  const Github = {
+    CLIENT_ID: '822bbd6320f8bae0de63',
+    REPO: 'CloudColonizer/gitweets',  // the original branch
+    get_access_token: async function(code){
+      // https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#2-users-are-redirected-back-to-your-site-by-github
+      const r = await fetch('https://f.est.im/github_oauth_proxy', {
+        method: 'POST', mode: 'cors',
+        headers: {'Accept': 'application/vnd.github+json', 'Content-Type': 'application/x-www-form-urlencoded'},
+        body: new URLSearchParams({
+          client_id: this.CLIENT_ID,
+          code: code}),
+        })
+      const b = await r.json();
+      console.log(b)
+      return b.access_token
+    },
+    refresh_access_token: async function(){
+      const params=new URL(document.location).searchParams;
+      if(!params.get('access_token') && params.get('code')){
+        this.access_token = await Github.get_access_token(params.get('code'))
+        location.assign(location.pathname + '?access_token=' + this.access_token)
+        return
+      } else if (!params.get('access_token')){
+        location.assign(
+          'https://github.com/login/oauth/authorize?'
+          + 'scope=public_repo&client_id='+Github.CLIENT_ID+'&redirect_uri='
+          + 'http://127.0.0.1:8001'+location.pathname+'?client_id='+Github.CLIENT_ID)
+        return
+      } else {
+        Github.access_token = params.get('access_token')
+        return Github.access_token
+      }
+    },
+    call_api: async function(api, data){
+      const options = {
+        'method': Boolean(data)?'POST':'GET',
+        'headers': {
+          'Accept': 'application/vnd.github+json',
+          'Authorization': 'Bearer ' + this.access_token,
+          'X-GitHub-Api-Version': '2022-11-28',
+      }}
+      if(typeof(data)=='object'){
+        options['body'] = JSON.stringify(data)
+      }
+      if(typeof(arguments[2])==='object'){
+        Object.assign(options, arguments[2])
+      }
+      const r = await fetch(api, options)
+      return r
+    },
+    meta: async function(){
+      'https://api.github.com/meta'
+    },
+    try_star: async function(repo){
+      const r = await this.call_api('https://api.github.com/user/starred/'+repo, null, {method: 'PUT'})
+      if (r.status == 204) document.write('Star '+repo+' success<br>')
+      return r.text()
+    },
+    try_fork: async function(){
+      const r = await this.call_api('https://api.github.com/repos/'+this.REPO+'/forks', {name: 'gitweets'})
+      if (r.status == 202) document.write('Fork'+this.REPO+' success<br>')
+      return await r.json()
+    }
+  }
+  if(await Github.refresh_access_token()){
+    // await Github.try_star('cloudcolonizer/pioneers')
+    const repos = (await Github.call_api('https://api.github.com/user/repos')).json()
+    await Github.try_fork()
+  }
+}
+  
+</script>
+</body>
+</html>
