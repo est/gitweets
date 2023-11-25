@@ -33,9 +33,9 @@ async function loader() {
         return
       } else if (!params.get('access_token')){
         location.assign(
-          'https://github.com/login/oauth/authorize?'
-          + 'scope=public_repo&client_id='+Github.CLIENT_ID+'&redirect_uri='
-          + 'http://127.0.0.1:8001'+location.pathname+'?client_id='+Github.CLIENT_ID)
+          'https://github.com/login/oauth/authorize?' +
+          'scope=public_repo&client_id='+Github.CLIENT_ID+'&redirect_uri=' +
+          'http://127.0.0.1:8001'+location.pathname+'%3Fclient_id='+Github.CLIENT_ID)
         return
       } else {
         Github.access_token = params.get('access_token')
@@ -81,6 +81,7 @@ async function loader() {
                 history(first: 12) {
                   nodes {
                     ... on Commit {
+                      oid
                       committedDate
                       message
                       changedFilesIfAvailable
@@ -96,7 +97,7 @@ async function loader() {
         }
       }`
     },
-    find_fork_oid: async function(){
+    find_fork_treeid: async function(){
       /*
         query {
           repositoryOwner(login:"est"){
@@ -117,14 +118,26 @@ async function loader() {
             nodes {
               nameWithOwner
               defaultBranchRef{
+                name
                 target{
+                  ... on Commit {
+                    tree{
+                      oid
+                    }
+                  }
                   oid
                 }
               }
               parent {
                 nameWithOwner
                 defaultBranchRef{
+                  name
                   target{
+                    ... on Commit {
+                      tree{
+                        oid
+                      }
+                    }
                     oid
                   }
                 }
@@ -136,29 +149,32 @@ async function loader() {
       const ret = await r.json()
       for (const repo of ret.data.viewer.repositories.nodes){
         if(repo.parent.nameWithOwner===this.REPO){
-          return [repo.nameWithOwner, repo.defaultBranchRef.target.oid]
+          return [
+            repo.nameWithOwner, repo.defaultBranchRef.name,
+            repo.defaultBranchRef.target.oid, repo.defaultBranchRef.target.tree.oid]
         }
       }
     },
-    make_commit: async function(repo, parent_oid, msg, file){
-      const r = await this.call_api('https://api.github.com/repos/'+repo+'/git/commits', {
+    make_commit: async function(repo, ref, prantid, treeid, msg, file){
+      const r1 = await this.call_api('https://api.github.com/repos/'+repo+'/git/commits', {
         "message": msg,
-        // "author": {
-        //   "name": "est",
-        //   "email": "electronicstar@1",
-        //   "date": "2008-07-09T16:13:30+12:00"},
-        "parents": [parent_oid],
-        "tree": '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
+        "parents": [prantid],
+        "tree": treeid
       })
-      return await r.json()
+      const c = await r1.json()
+      const r2 = await this.call_api(
+        'https://api.github.com/repos/'+repo+'/git/refs/heads/'+ref, {
+          "sha": c['sha'],
+          "force": true,
+        })
     }
   }
   if(await Github.refresh_access_token()){
     // await Github.try_star('cloudcolonizer/pioneers')
     // await Github.try_fork()
     // const repos = (await Github.call_api('https://api.github.com/user/repos')).json()
-    const [repo, oid] = (await Github.find_fork_oid())
-    await Github.make_commit(repo, oid, 'haha')
+    const [repo, ref, prantid, treeid] = (await Github.find_fork_treeid())
+    await Github.make_commit(repo, ref, prantid, treeid, 'haha')
   }
 }
 </script>

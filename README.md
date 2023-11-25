@@ -43,9 +43,11 @@ This is @est's fork of Yan's janky twitter replacement.
   * [X] ~~[star](https://docs.github.com/en/rest/activity/starring?apiVersion=2022-11-28#) it~~
   * [X] ~~[rate limit](https://docs.github.com/en/rest/overview/rate-limits-for-the-rest-api?apiVersion=2022-11-28#primary-rate-limit-for-oauth-apps)
   * [X] ~~fork it~~
+  * [X] ~~`--allow-empty` with same Tree SHA~~
+  * [X] make commit
   * [ ] [join org](https://docs.github.com/en/rest/orgs/members)
-  * [ ] make commit
   * [ ] create [pull request](https://docs.github.com/en/rest/pulls/pulls)
+  * [ ] hide access_token in URL fragments
 * [ ] 移动端响应式布局 🤣
 * [ ] fix long text
 * [ ] 翻页 API
