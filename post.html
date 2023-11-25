@@ -74,19 +74,40 @@ async function loader() {
     },
     find_messages: async function(){
       `{
-        repository(owner: "est", name: "gitweets") {
+        repository(owner: "CloudColonizer", name: "gitweets") {
           defaultBranchRef {
             target {
               ... on Commit {
-                history(first: 12) {
+                history(first: 12,path:"static/") {
                   nodes {
-                    ... on Commit {
-                      oid
-                      committedDate
-                      message
-                      changedFilesIfAvailable
-                      file(path:"static"){
-                        path
+                    message
+                    oid
+                    file(path:"static/") {
+                      object{
+                        ... on Tree{
+                          entries{
+                            path
+                            object {
+                              ... on Tree{
+                                oid
+                                entries{
+                                  path
+                                  size
+                                  # lineCount
+                                  mode
+                                  object{
+                                    oid
+                                    ... on Blob{
+                                      byteSize
+                                      isBinary
+                                      abbreviatedOid
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -96,6 +117,42 @@ async function loader() {
           }
         }
       }`
+    },
+    read_notes: async function(){
+      `{
+      repository(owner: "est", name: "gitweets") {
+        refs(refPrefix:"refs/notes/",first:1) {
+          nodes{
+            ... on Ref{
+              target {
+                oid
+                ... on Commit{
+                  changedFilesIfAvailable
+                  message
+                  tree{
+                    oid
+                    entries{
+                      oid
+                      path
+                      size
+                      lineCount
+                      mode
+                      object{
+                        ... on Blob{
+                          byteSize
+                          text
+                        }
+                      }
+                    }
+                  }
+                }
+                
+              }
+            }
+          }
+        }
+      }
+    }`
     },
     find_fork_treeid: async function(){
       /*

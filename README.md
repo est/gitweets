@@ -52,6 +52,9 @@ This is @est's fork of Yan's janky twitter replacement.
 * [ ] fix long text
 * [ ] 翻页 API
 * [ ] 视频、音频控件
+* [ ] 避免 N+1 获取文件
+  * [ ] [contens API](https://api.github.com/repos/est/gitweets/contents/static%2F2023)
+  * [X] ~~[... on Tree](https://github.com/orgs/community/discussions/24496)~~
 * [ ] 网址 microformats 支持卡片
 * [ ] non-github API 支持：gitlab等
 * [ ] 本地 `make` 生成 .json 静态页面
