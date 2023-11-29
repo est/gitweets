@@ -231,7 +231,7 @@ async function loader() {
     // await Github.try_fork()
     // const repos = (await Github.call_api('https://api.github.com/user/repos')).json()
     const [repo, ref, prantid, treeid] = (await Github.find_fork_treeid())
-    await Github.make_commit(repo, ref, prantid, treeid, 'haha')
+    await Github.make_commit('CloudColonizer/gitweets', ref, prantid, treeid, 'haha')
   }
 }
 </script>

@@ -48,6 +48,8 @@ This is @est's fork of Yan's janky twitter replacement.
   * [ ] [join org](https://docs.github.com/en/rest/orgs/members)
   * [ ] create [pull request](https://docs.github.com/en/rest/pulls/pulls)
   * [ ] hide access_token in URL fragments
+  * [X] ~~use js module import~~
+  * [ ] edit layout, add the post textarea and button
 * [ ] 移动端响应式布局 🤣
 * [ ] fix long text
 * [ ] 翻页 API
