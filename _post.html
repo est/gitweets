@@ -225,20 +225,27 @@ async function loader() {
         "tree": tree
       })
       const c = await r1.json()
-      const tmp_branch = 'new_gitweets'
-      const r2 = await this.call_api(
-        'https://api.github.com/repos/'+repo+'/git/refs/heads/'+tmp_branch, null, {'method': 'DELETE'})
+      const t = new Date()
+      const bn = 'new_gitweets_'+t.getFullYear()+(t.getMonth()+1)+t.getDate()+'_'+t.getHours()+t.getMinutes()+t.getSeconds()
+      // const r2 = await this.call_api(
+      //   'https://api.github.com/repos/'+repo+'/git/refs/heads/'+bn, null, {
+      //     'method': 'DELETE'})
       const r3 = await this.call_api(
         'https://api.github.com/repos/'+repo+'/git/refs', {
-          "ref": "refs/heads/"+tmp_branch, "sha": c['sha'], "force": true,
+          "ref": "refs/heads/"+bn, "sha": c['sha'], "force": true,
         })
-      return r3
+      if(r3.status==201){
+        return bn  
+      } else {
+        return null
+      }
+      
     },
     try_merge: async function(orig_repo, orig_branch, fork_repo, fork_branch){
       const [fu, fn] = fork_repo.split('/', 2)
       const r = await this.call_api('https://api.github.com/repos/'+orig_repo+'/pulls', {
         "title": "New posts from @"+fu,
-        "body": "UA: "+navigator.userAgent+'\nReferrer: '+ document.referrer+'\nURL: '+location.href,
+        "body": 'URL: '+location.href+'\nReferrer: '+ document.referrer+"UA: "+navigator.userAgent,
         "head": fu+":"+fork_branch, "head_repo": fn, "base": orig_branch,
         "maintainer_can_modify": true
       })
@@ -250,11 +257,9 @@ async function loader() {
     // await Github.try_fork()
     // const repos = (await Github.call_api('https://api.github.com/user/repos')).json()
     const [orig, fork] = (await Github.find_fork_treeid())
-    const r = await Github.make_commit(fork.repo, orig.sha, orig.tree, 'haha')
-    if (r.status == 201) {
-      await Github.try_merge(orig.repo, orig.branch, fork.repo, 'new_gitweets')
-    } else {
-      console.info((await r.json())?.message)
+    const new_branch_name = await Github.make_commit(fork.repo, orig.sha, orig.tree, 'haha')
+    if (new_branch_name) {
+      await Github.try_merge(orig.repo, orig.branch, fork.repo, new_branch_name)
     }
   }
 }
