@@ -35,7 +35,7 @@ async function loader() {
         location.assign(
           'https://github.com/login/oauth/authorize?' +
           'scope=public_repo&client_id='+Github.CLIENT_ID+'&redirect_uri=' +
-          'http://127.0.0.1:8001'+location.pathname+'%3Fclient_id='+Github.CLIENT_ID)
+          location.origin+location.pathname+'%3Fclient_id='+Github.CLIENT_ID)
         return
       } else {
         Github.access_token = params.get('access_token')
@@ -50,7 +50,7 @@ async function loader() {
           'Authorization': 'Bearer ' + this.access_token,
           'X-GitHub-Api-Version': '2022-11-28',
       }}
-      if(typeof(data)=='object'){
+      if(data!=undefined && typeof(data)=='object'){
         options['body'] = JSON.stringify(data)
       }
       if(typeof(arguments[2])==='object'){
@@ -206,32 +206,56 @@ async function loader() {
       const ret = await r.json()
       for (const repo of ret.data.viewer.repositories.nodes){
         if(repo.parent.nameWithOwner===this.REPO){
-          return [
-            repo.nameWithOwner, repo.defaultBranchRef.name,
-            repo.defaultBranchRef.target.oid, repo.defaultBranchRef.target.tree.oid]
+          return [{
+            'repo': repo.parent.nameWithOwner,
+            'branch': repo.parent.defaultBranchRef.name,
+            'sha': repo.parent.defaultBranchRef.target.oid,
+            'tree': repo.parent.defaultBranchRef.target.tree.oid
+          }, {
+            'repo': repo.nameWithOwner,
+            'branch': repo.defaultBranchRef.name,
+          }]
         }
       }
     },
-    make_commit: async function(repo, ref, prantid, treeid, msg, file){
+    make_commit: async function(repo, sha, tree, msg, file){
       const r1 = await this.call_api('https://api.github.com/repos/'+repo+'/git/commits', {
         "message": msg,
-        "parents": [prantid],
-        "tree": treeid
+        "parents": [sha],
+        "tree": tree
       })
       const c = await r1.json()
+      const tmp_branch = 'new_gitweets'
       const r2 = await this.call_api(
-        'https://api.github.com/repos/'+repo+'/git/refs/heads/'+ref, {
-          "sha": c['sha'],
-          "force": true,
+        'https://api.github.com/repos/'+repo+'/git/refs/heads/'+tmp_branch, null, {'method': 'DELETE'})
+      const r3 = await this.call_api(
+        'https://api.github.com/repos/'+repo+'/git/refs', {
+          "ref": "refs/heads/"+tmp_branch, "sha": c['sha'], "force": true,
         })
+      return r3
+    },
+    try_merge: async function(orig_repo, orig_branch, fork_repo, fork_branch){
+      const [fu, fn] = fork_repo.split('/', 2)
+      const r = await this.call_api('https://api.github.com/repos/'+orig_repo+'/pulls', {
+        "title": "New posts from @"+fu,
+        "body": "UA: "+navigator.userAgent+'\nReferrer: '+ document.referrer+'\nURL: '+location.href,
+        "head": fu+":"+fork_branch, "head_repo": fn, "base": orig_branch,
+        "maintainer_can_modify": true
+      })
+      return await r.json()
     }
   }
   if(await Github.refresh_access_token()){
     // await Github.try_star('cloudcolonizer/pioneers')
     // await Github.try_fork()
     // const repos = (await Github.call_api('https://api.github.com/user/repos')).json()
-    const [repo, ref, prantid, treeid] = (await Github.find_fork_treeid())
-    await Github.make_commit('CloudColonizer/gitweets', ref, prantid, treeid, 'haha')
+    const [orig, fork] = (await Github.find_fork_treeid())
+    const r = await Github.make_commit(fork.repo, orig.sha, orig.tree, 'haha')
+    if (r.status == 201) {
+      await Github.try_merge(orig.repo, orig.branch, fork.repo, 'new_gitweets')
+    } else {
+      console.info((await r.json())?.message)
+    }
   }
 }
 </script>
