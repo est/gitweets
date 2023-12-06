@@ -47,8 +47,8 @@ This is @est's fork of Yan's janky twitter replacement.
   * [X] make commit
   * [X] create [pull request](https://docs.github.com/en/rest/pulls/pulls)
   * [X] ~~use js module import~~
+  * [X] ~~hide access_token in URL fragments~~ now in cookie lmao
   * [ ] [join org](https://docs.github.com/en/rest/orgs/members)
-  * [ ] hide access_token in URL fragments
   * [ ] edit layout, add the post textarea and button
 * [ ] 移动端响应式布局 🤣
 * [ ] fix long text

@@ -27,18 +27,20 @@ async function loader() {
     },
     refresh_access_token: async function(){
       const params=new URL(document.location).searchParams;
-      if(!params.get('access_token') && params.get('code')){
+      const gat = /github_access_token=([^;]+)/.exec(document.cookie)?.[1]
+      if(!gat && params.get('code')){
         this.access_token = await Github.get_access_token(params.get('code'))
-        location.assign(location.pathname + '?access_token=' + this.access_token)
+        location.assign(location.pathname)
+        document.cookie = 'github_access_token='+this.access_token+';'
         return
-      } else if (!params.get('access_token')){
+      } else if (!gat){
         location.assign(
           'https://github.com/login/oauth/authorize?' +
           'scope=public_repo&client_id='+Github.CLIENT_ID+'&redirect_uri=' +
           location.origin+location.pathname+'%3Fclient_id='+Github.CLIENT_ID)
         return
       } else {
-        Github.access_token = params.get('access_token')
+        Github.access_token = gat
         return Github.access_token
       }
     },
@@ -218,7 +220,7 @@ async function loader() {
         }
       }
     },
-    make_commit: async function(repo, sha, tree, msg, file){
+    make_commit: async function(repo, sha, tree, msg, file, force){
       const r1 = await this.call_api('https://api.github.com/repos/'+repo+'/git/commits', {
         "message": msg,
         "parents": [sha],
@@ -226,11 +228,17 @@ async function loader() {
       })
       const c = await r1.json()
       const t = new Date()
-      const bn = 'new_gitweets_'+t.getFullYear()+(t.getMonth()+1)+t.getDate()+'_'+t.getHours()+t.getMinutes()+t.getSeconds()
-      // const r2 = await this.call_api(
-      //   'https://api.github.com/repos/'+repo+'/git/refs/heads/'+bn, null, {
-      //     'method': 'DELETE'})
-      const r3 = await this.call_api(
+      const bn = 'new_gitweets_'+[
+        'FullYear', 'Month', 'Date', '_', 'Hours', 'Minutes', 'Seconds'
+      ].map((f)=>(  // date string, +1 for getMonth, padding 2 digits, add an _
+        m='get'+f, m in t?( t[m]()+0|f=='Month' ).toString().padStart(2,0):f
+      )).join('')
+      if(force){  // delete existing branch in case of conflict
+        const r2 = await this.call_api(
+          'https://api.github.com/repos/'+repo+'/git/refs/heads/'+bn, null, {
+            'method': 'DELETE'})  
+      }
+      const r3 = await this.call_api(  // write branch
         'https://api.github.com/repos/'+repo+'/git/refs', {
           "ref": "refs/heads/"+bn, "sha": c['sha'], "force": true,
         })
@@ -257,7 +265,7 @@ async function loader() {
     // await Github.try_fork()
     // const repos = (await Github.call_api('https://api.github.com/user/repos')).json()
     const [orig, fork] = (await Github.find_fork_treeid())
-    const new_branch_name = await Github.make_commit(fork.repo, orig.sha, orig.tree, 'haha')
+    const new_branch_name = await Github.make_commit(fork.repo, orig.sha, orig.tree, prompt('say:'))
     if (new_branch_name) {
       await Github.try_merge(orig.repo, orig.branch, fork.repo, new_branch_name)
     }
