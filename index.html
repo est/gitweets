@@ -59,6 +59,22 @@
 			padding: 1rem;
 			border: 1px solid #ccc;
 		}
+
+	/* Loading indicator styles */
+	#divStatus {
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			padding: 1rem;
+			border-radius: 8px;
+			background-color: #f8f9fa;
+			box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+			margin: 1rem auto;
+			width: fit-content;
+			font-size: 1.1rem;
+			color: #555;
+		}
+
 		.tweet {
 			display: flex;
 			padding-right: 1rem;
@@ -131,7 +147,7 @@
 				<option selected="selected" value="https://github.com/est/gitweets">
 			</datalist>
 			<button id="btnRefresh" onclick="load_timeline()">🔄</button>
-			<button id="btnNewPost">✏️</button>
+			<button id="btnNewPost" onclick="javascript:composeModal.style.display='block';">✏️</button>
 			<button id="btnPrev" disabled>⬅️</button>
 			<button id="btnNext">➡️</button>
 		</div>
@@ -144,13 +160,13 @@
 		<div class="modal-content">
 			<div class="modal-header">
 				<h2>✍️</h2>
-				<span id="btnClose">&times;</span>
+				<span id="btnClose" onclick="closeModal()">&times;</span>
 			</div>
 			<div class="modal-body">
 				<textarea id="tweetInput" placeholder="What's up?"></textarea>
 			</div>
 			<div class="modal-footer">
-				<button id="btnCancel">Cancel</button>
+				<button id="btnCancel" onclick="closeModal()">Cancel</button>
 				<button id="btnPost">Post</button>
 			</div>
 		</div>
@@ -173,13 +189,9 @@
 				<a class="datetime" href="/${encodeURI(o.author_slug)}/${encodeURI(o.id)}">${sh(sd(o.date))}</a>
 			</div>
 		</div>
-		  `}
+		`}
 		async function load_timeline(page){
-			// Parse page from URL if not provided
-			if (!page) {
-				const urlParams = new URLSearchParams(window.location.search);
-				page = parseInt(urlParams.get('page')) || 1;
-			}
+			updatePaginationButtons();
 			divStatus.style.display = 'block'
 			divStatus.innerText = "Loading..."
 			if (!inputServer.value) {
@@ -193,8 +205,11 @@
 			console.log('server', servers[1])
 			const GITHUB_API = `https://api.github.com/repos/${servers[1]}/commits`
 			const params = {per_page: 10}
-			if(page)
+			if(page){
 				params.page = page
+			}else {
+				params.page = currentPage
+			}
 			const m = /^\/(\w+)(?:\/([0-9a-fA-F]{40}))?$/.exec(location.pathname)
 			if (m && m.length == 3 && m[2])
 				params.sha = m[2]
@@ -245,16 +260,9 @@
 		// Modal functionality
 		// Using element IDs directly
 
-		btnNewPost.addEventListener('click', function() {
-			composeModal.style.display = 'block';
-		});
-
 		function closeModal() {
 			composeModal.style.display = 'none';
 		}
-
-		btnCancel.addEventListener('click', closeModal);
-		btnClose.addEventListener('click', closeModal);
 
 		// Close modal when clicking outside the modal content
 		window.addEventListener('click', function(event) {
@@ -280,15 +288,13 @@
 			}
 		});
 		// Pagination functionality
-		let currentPage = 1;
+		const urlParams = new URLSearchParams(window.location.search);
+		let currentPage = parseInt(urlParams.get('page')) || 1;
 		
 		// Update pagination buttons state
 		function updatePaginationButtons() {
 			btnPrev.disabled = currentPage === 1;
 		}
-		
-		// Initialize pagination
-		updatePaginationButtons();
 		
 		// Previous page button
 		btnPrev.addEventListener('click', function() {
@@ -314,17 +320,6 @@
 			load_timeline(currentPage);
 			updatePaginationButtons();
 		});
-		
-		// Check for page parameter in URL on load
-		const urlParams = new URLSearchParams(window.location.search);
-		const pageParam = urlParams.get('page');
-		if (pageParam) {
-			currentPage = parseInt(pageParam, 10);
-			if (isNaN(currentPage) || currentPage < 1) {
-				currentPage = 1;
-			}
-			updatePaginationButtons();
-		}
 		--></script>
 </body>
 </html>
