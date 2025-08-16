@@ -7,6 +7,54 @@
 		body {
 			font-family: sans-serif;
 		}
+		.banner {
+			max-width: 45rem;
+			margin: 0 auto 1rem auto;
+			padding: 0.5rem 1rem;
+			border: 1px solid #ccc;
+			background-color: #f8f9fa;
+			display: flex;
+			align-items: center;
+			gap: 1rem;
+		}
+		.banner h1 {
+			margin: 0;
+			color: #1da1f2;
+			font-size: 1.5rem;
+			white-space: nowrap;
+		}
+		.banner-controls {
+			display: flex;
+			justify-content: flex-end;
+			align-items: center;
+			flex-grow: 1;
+		}
+		.banner input {
+			flex-grow: 1;
+			max-width: 200px;
+			padding: 0.5rem;
+			margin-right: 0.5rem;
+			border: 1px solid #ccc;
+			border-radius: 4px;
+		}
+		.banner button {
+			margin-right: 0.5rem;
+			border: 2px solid #1da1f2;
+			border-radius: 4px;
+			background-color: transparent;
+			color: #1da1f2;
+			cursor: pointer;
+			transition: all 0.2s ease;
+			font-size: 1.2rem;
+			line-height: 1.5;
+		}
+		.banner button:hover {
+			background-color: #e8f5fe;
+			border-color: #0c85d0;
+		}
+		.banner #btnNewPost {
+			margin-right: 0;
+		}
 		#timeline {
 			flex-direction: column;
 			max-width: 45rem;
@@ -42,7 +90,6 @@
 		.tweet .tweet-content .medias {
 			display: flex;
 			flex-wrap: wrap;
-
 			margin-collapse: collapse;
 			list-style-type: none;
 	    margin: 0;
@@ -65,13 +112,51 @@
 			color: #555;
 		}
 
+		/* Modal styles */
+		.modal {display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.4);}
+		.modal-header {display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;}
+		.modal-header h2 {margin: 0; color: #1da1f2;}
+		.modal #btnClose {font-size: 1.5rem; cursor: pointer;}
+		.modal-content {background-color: #fff; margin: 10% auto; padding: 1rem; border: 1px solid #888; width: 40em; border-radius: 8px;}
+		.modal-body textarea {width: 100%; height: 150px; padding: 0.5rem; margin-bottom: 1rem; border: 1px solid #ccc; border-radius: 4px; resize: vertical; box-sizing: border-box;}
+		.modal-footer {display: flex; justify-content: flex-end; gap: 0.5rem;}
+		.modal-footer button {padding: 0.5rem 1rem; border: none; border-radius: 4px; cursor: pointer;}
+		.modal #btnCancel {background-color: #1da1f2; color: white;}
+		.modal #btnPost {background-color: #ccc; color: #333;}
 	</style>
 </head>
 <body onload="load_timeline()">
+	<div class="banner">
+		<h1>gitweets</h1>
+		<div class="banner-controls">
+			<input id="inputServers" list="servers" placeholder="Select or type a server" value="">
+			<datalist id="servers">
+				<option selected="selected" value="https://github.com/est/gitweets">
+			</datalist>
+			<button id="btnRefresh">🔄</button>
+			<button id="btnNewPost">✏️</button>
+		</div>
+	</div>
 	<div id="timeline">
 		<div id="status">Loading...</div>
 	</div>
-	<script>
+	<!-- Modal for composing tweet -->
+	<div id="composeModal" class="modal">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h2>✍️</h2>
+				<span id="btnClose">&times;</span>
+			</div>
+			<div class="modal-body">
+				<textarea id="tweetInput" placeholder="What's up?"></textarea>
+			</div>
+			<div class="modal-footer">
+				<button id="btnCancel">Cancel</button>
+				<button id="btnPost">Post</button>
+			</div>
+		</div>
+	</div>
+	<script><!--
 		// safe html
 		const sh=s=>s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')  
 		// show date
@@ -93,7 +178,7 @@
 		async function load_timeline(page){
 			// modify your API here
 			const GITHUB_API = 'https://api.github.com/repos/est/gitweets/commits'
-			const params = {}
+			const params = {per_page: 10}
 			if(page)
 				params.page = page
 			const m = /^\/(\w+)(?:\/([0-9a-fA-F]{40}))?$/.exec(location.pathname)
@@ -141,6 +226,44 @@
 					'beforeend', imgs.join('\n'))
 			})
 		}
-	</script>
+
+		// Modal functionality
+		// Using element IDs directly
+
+		btnNewPost.addEventListener('click', function() {
+			composeModal.style.display = 'block';
+		});
+
+		function closeModal() {
+			composeModal.style.display = 'none';
+		}
+
+		btnCancel.addEventListener('click', closeModal);
+		btnClose.addEventListener('click', closeModal);
+
+		// Close modal when clicking outside the modal content
+		window.addEventListener('click', function(event) {
+			if (event.target == composeModal) {
+				closeModal();
+			}
+		});
+		window.addEventListener('keydown', function(event) {
+			if (event.key === 'Escape') {
+				closeModal();
+			}
+		});
+
+		// Post tweet functionality (placeholder)
+		btnPost.addEventListener('click', function() {
+			const text = tweetInput.value;
+			if (text.trim()) {
+				alert('Tweet posted!\n\n' + text);
+				tweetInput.value = '';
+				closeModal();
+			} else {
+				alert('Please enter a tweet.');
+			}
+		});
+		--></script>
 </body>
 </html>
