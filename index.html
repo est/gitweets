@@ -264,46 +264,14 @@
 		}
 		// do post
 		async function post_new(access_token, text) {
-			const r1 = await fetch(`${API_BASE}/commits?per_page=1`, {
-				method: 'get', signal: AbortSignal.timeout(5000),
-			})
-			const r1_rsp = await r1.json()
-			const last_sha = r1_rsp?.[0]?.sha
-			const last_tree = r1_rsp?.[0]?.commit?.tree?.sha
-			if (!last_sha || !last_tree) return
-			const r2 = await fetch(`${API_BASE}/commits/${last_sha}/branches-where-head`, {
-				method: 'get', signal: AbortSignal.timeout(5000),
-			})
-			const branch = (await r2.json())?.[0]?.name
-			API_COMMIT_BASE = `${API_BASE}/git/commits`
-			const r3 = await fetch(API_COMMIT_BASE, {
-				method: 'post', header: {"Authorization": `Bearer ${access_token}`},
-				signal: AbortSignal.timeout(5000), body: JSON.stringify({
-					message: text, tree: last_tree, parents: [last_sha]
-				}), credentials: 'include'
-			})
-			API_HEAD_BASE = `${API_BASE}/git/ref/heads/${branch}`
-			const new_sha = (await r3.json())?.sha
-			const r4 = await fetch(API_HEAD_BASE, {
-				method: 'patch', header: {"Authorization": `Bearer ${access_token}`},
-				signal: AbortSignal.timeout(5000), body: JSON.stringify({
-					sha: new_sha
-				}), credentials: 'include'
-			})
-			return await r4.json()
+			
 		}
-
-		function getCookie(name) {
-			return decodeURIComponent(document.cookie
-				.split(";")
-				.find(row => row.trim().startsWith(name + "="))
-				?.split("=")[1]?.trim() || '');
-		}
+		import {getCookie} from './static/utils.js'
 
 		// Modal functionality
 		// Using element IDs directly
 		function openModal() {
-			if (getCookie('access_token')){
+			if (getCookie(document.cookie, 'access_token')){
 				btnPost.innerText = 'Post'
 			} else {
 				inputTweet.value = ''
@@ -334,7 +302,7 @@
 		// bind post actions
 		btnPost.addEventListener('click', async function() {
 			const text = inputTweet.value.trim();
-			const access_token = getCookie('access_token')
+			const access_token = getCookie(document.cookie, 'access_token')
 			if (access_token) {
 				if (!text){
 					inputTweet.placeholder = 'Type something here!'
