@@ -212,9 +212,7 @@
 				divStatus.innerText = "bad server"
 				return;
 			}
-			const which = servers[1]
-			console.log('server', which)
-			const GITHUB_API = `https://api.github.com/repos/${which}/commits`
+			window.API_BASE = `https://api.github.com/repos/${servers[1]}`
 			const params = {per_page: 10}
 			if(page){
 				params.page = page
@@ -229,10 +227,10 @@
 
 			var data;
 			if (params.sha){
-				data = [await (await fetch(GITHUB_API+'/'+params.sha)).json()]
+				data = [await (await fetch(`${API_BASE}/commits/${params.sha}`)).json()]
 			}
 			else{
-				data = await (await fetch(GITHUB_API+'?'+new URLSearchParams(params).toString())).json()
+				data = await (await fetch(`${API_BASE}/commits?${new URLSearchParams(params).toString()}`)).json()
 			}
 			timeline.querySelectorAll(':scope #divStatus ~ *').forEach(sib => sib.remove());
 			if(data.length){
@@ -265,26 +263,26 @@
 			})
 		}
 		// do post
-		async function post_new(repo, access_token, text) {
-			const BRANCH = 'main'
-			API_HEAD_BASE = `https://api.github.com/repos/${repo}/git/ref/heads/${BRANCH}`
-			const r1 = await fetch(API_HEAD_BASE, {
+		async function post_new(access_token, text) {
+			const r1 = await fetch(`${API_BASE}/commits?per_page=1`, {
 				method: 'get', signal: AbortSignal.timeout(5000),
 			})
-			const last_sha = (await r1.json())?.object?.sha
-			if (!last_sha) return
-			API_COMMIT_BASE = `https://api.github.com/repos/${repo}/git/commits`
-			const r2 = await fetch(`${API_COMMIT_BASE}/${last_sha}`, {
+			const r1_rsp = await r1.json()
+			const last_sha = r1_rsp?.[0]?.sha
+			const last_tree = r1_rsp?.[0]?.commit?.tree?.sha
+			if (!last_sha || !last_tree) return
+			const r2 = await fetch(`${API_BASE}/commits/${last_sha}/branches-where-head`, {
 				method: 'get', signal: AbortSignal.timeout(5000),
 			})
-			const tree_sha = (await r2.json())?.tree?.sha
-			if (!tree_sha) return
+			const branch = (await r2.json())?.[0]?.name
+			API_COMMIT_BASE = `${API_BASE}/git/commits`
 			const r3 = await fetch(API_COMMIT_BASE, {
 				method: 'post', header: {Authorization: `Bearer ${access_token}`},
 				signal: AbortSignal.timeout(5000), body: JSON.stringify({
 					message: text, tree: [tree_sha], parents: last_sha
 				})
 			})
+			API_HEAD_BASE = `${API_BASE}/git/ref/heads/${branch}`
 			const new_sha = (await r3.json())?.sha
 			const r4 = await fetch(API_HEAD_BASE, {
 				method: 'patch', header: {Authorization: `Bearer ${access_token}`},
