@@ -1,5 +1,5 @@
 async function handler(request, env) {
-  const params = new URLSearchParams(context.request.searchParams)
+  const params = new URLSearchParams(request.searchParams)
   const code = (params.get('code') || '').trim()
   const rspGohome = Response.redirect('/', 302)
   if (code.length != 20 || !env.client_secret || env.client_id){
@@ -26,5 +26,5 @@ async function handler(request, env) {
 }
 
 export function onRequest(context) {
-    return handler(context.request, context.env)
+  return handler(context.request, context.env)
 }
