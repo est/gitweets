@@ -8,7 +8,7 @@ function getCookie(cookie_str, name) {
 async function fetch_json(url, opts){
     opts.signal ||= AbortSignal.timeout(5000)
     const req = await fetch(url, opts)
-    rsp = await req.text()
+    const rsp = await req.text()
     try{
         const obj = JSON.parse(rsp)
     } catch(err) {
