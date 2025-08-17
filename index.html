@@ -166,7 +166,6 @@
 			</div>
 		</div>
 	</div>
-	<script type="module" src="./static/utils.js"></script>
 	<script><!--
 		// safe html
 		const sh=s=>s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')  
@@ -271,7 +270,12 @@
 			})
 			return await r1.json()
 		}
-		import {getCookie} from './static/utils.js'
+		function getCookie(cookie_str, name) {
+			return decodeURIComponent(cookie_str || ''
+				.split(";")
+				.find(row => row.trim().startsWith(name + "="))
+				?.split("=")[1]?.trim() || '');
+		}
 		// Modal functionality
 		// Using element IDs directly
 		function openModal() {
@@ -351,6 +355,6 @@
 			load_timeline(currentPage);
 			updatePaginationButtons();
 		});
-		--></script>
+	--></script>
 </body>
 </html>
