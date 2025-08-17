@@ -2,6 +2,7 @@ async function handler(request, env) {
   const req_url = new URL(request.url)
   const code = (req_url.searchParams.get('code') || '').trim()
   const rspGohome = Response.redirect('/', 302)
+  console.log(env)
   if (code.length != 20 || !env.client_secret || !env.client_id){
     return rspGohome
   }
