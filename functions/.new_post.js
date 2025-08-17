@@ -22,18 +22,18 @@ async function fetch_json(url, opts){
 async function handler(request, env) {
     const req_url = new URL(request.url)
     const repo = req_url.searchParams.get('repo')
-    if (!repo) return new Response('', {status: 400})
+    if (!repo) return Response.json({error: 'no repo'}, {status: 400})
     const access_token = getCookie(request.headers.get('cookie'), 'access_token')
     const {message} = await request.json()
-    if (!message) return new Response('', {status: 400})
+    if (!message) return Response.json({error: 'no message'}, {status: 400})
     const API_BASE = `https://api.github.com/repos/${repo}`
     const r1 = await fetch_json(`${API_BASE}/commits?per_page=1`)
     const last_sha = r1?.[0]?.sha
     const last_tree = r1?.[0]?.commit?.tree?.sha
-    if (!last_sha || !last_tree) return Response.json({error: 'no last commit'}, {status: 400})
+    if (!last_sha || !last_tree) return Response.json({error: 'no last commit', rsp: r1}, {status: 400})
     const r2 = await fetch_json(`${API_BASE}/commits/${last_sha}/branches-where-head`)
     const branch = r2?.[0]?.name
-    if (!branch) return Response.json({error: 'no branch'}, {status: 400})
+    if (!branch){return Response.json({error: 'no branch', rsp: r2}, {status: 400})}
     const r3 = await fetch_json(`${API_BASE}/git/commits`, {
         method: 'post', header: {"Authorization": `Bearer ${access_token}`},
         body: JSON.stringify({
@@ -41,7 +41,7 @@ async function handler(request, env) {
         }), credentials: 'include'
     })
     const new_sha = r3?.sha
-    if (!new_sha) return Response.json({error: 'failed to commit'}, {status: 400})
+    if (!new_sha) return Response.json({error: 'failed to commit', rsp: r3}, {status: 400})
     const r4 = await fetch_json(`${API_BASE}/git/ref/heads/${branch}`, {
         method: 'patch', header: {"Authorization": `Bearer ${access_token}`},
         body: JSON.stringify({
