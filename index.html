@@ -279,7 +279,7 @@
 			const r3 = await fetch(API_COMMIT_BASE, {
 				method: 'post', header: {Authorization: `Bearer ${access_token}`},
 				signal: AbortSignal.timeout(5000), body: JSON.stringify({
-					message: text, tree: [last_tree], parents: last_sha
+					message: text, tree: last_tree, parents: [last_sha]
 				})
 			})
 			API_HEAD_BASE = `${API_BASE}/git/ref/heads/${branch}`
