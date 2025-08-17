@@ -1,8 +1,8 @@
 async function handler(request, env) {
-  const params = new URLSearchParams((new URL(request.url)).searchParams)
-  const code = (params.get('code') || '').trim()
+  const req_url = new URL(request.url)
+  const code = (req_url.searchParams.get('code') || '').trim()
   const rspGohome = Response.redirect('/', 302)
-  if (code.length != 20 || !env.client_secret || env.client_id){
+  if (code.length != 20 || !env.client_secret || !env.client_id){
     return rspGohome
   }
   const payload = new URLSearchParams({
