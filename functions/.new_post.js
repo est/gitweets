@@ -52,12 +52,13 @@ async function handler(request, env) {
             error: 'failed to commit', req: r3_req, rsp: r3, url: r3_api
         }, {status: 400})
     }
-    const r4_api = `${API_BASE}/git/ref/heads/${branch}`
+    const r4_api = `${API_BASE}/git/refs`
     const r4_opts = {
-        method: 'patch', headers: {
+        method: 'post', headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${access_token}`},
         body: JSON.stringify({
+            ref: `refs/heads/${branch}`,
             sha: new_sha
         }), credentials: 'include'
     }
