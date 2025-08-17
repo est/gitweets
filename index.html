@@ -192,11 +192,14 @@
 		</div>
 		`}
 
-		function append_images(post_id, urls){
-			const is_img = RegExp.prototype.test.bind(/static%2F.+(.webp|.jpg|.jpeg|.png|.gif|.jxl|.avif)$/)
-			const imgs = urls.filter(is_img).map(url=>`<li><img src="${url}"></li>`)
-			console.info(post_id, imgs)
-			timeline.querySelector('.tweet#post-'+post_id+' .tweet-content .medias').insertAdjacentHTML(
+		function append_images(sha1_id, urls){
+			const imgs = []
+			urls.forEach(url=>{
+				const m = /\/([^\/]+)\/([^\/]+)\/raw\/([^\/]+)\/static%2F(.+.webp|.jpg|.jpeg|.png|.gif|.jxl|.avif)$/.exec(url)
+				if (m){
+					imgs.push(`<li><img src="https://raw.githubusercontent.com/${m[1]}/${m[2]}/${m[3]}/static/${decodeURIComponent(m[4])}"></li>`)
+				}})
+			timeline.querySelector('.tweet#post-'+sha1_id+' .tweet-content .medias').insertAdjacentHTML(
 				'beforeend', imgs.join('\n'))
 		}
 
