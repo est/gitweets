@@ -192,6 +192,14 @@
 		</div>
 		`}
 
+		function append_images(post_id, urls){
+			const is_img = RegExp.prototype.test.bind(/static%2F.+(.webp|.jpg|.jpeg|.png|.gif|.jxl|.avif)$/)
+			const imgs = urls.filter(is_img).map(url=>`<li><img src="${url}"></li>`)
+			console.info(post_id, imgs)
+			timeline.querySelector('.tweet#post-'+post_id+' .tweet-content .medias').insertAdjacentHTML(
+				'beforeend', imgs.join('\n'))
+		}
+
 		// load timeline 
 		async function load_timeline(page){
 			updatePaginationButtons();
@@ -205,8 +213,9 @@
 				divStatus.innerText = "bad server"
 				return;
 			}
-			console.log('server', servers[1])
-			const GITHUB_API = `https://api.github.com/repos/${servers[1]}/commits`
+			const which = servers[1]
+			console.log('server', which)
+			const GITHUB_API = `https://api.github.com/repos/${which}/commits`
 			const params = {per_page: 10}
 			if(page){
 				params.page = page
@@ -227,16 +236,14 @@
 				data = await (await fetch(GITHUB_API+'?'+new URLSearchParams(params).toString())).json()
 			}
 			timeline.querySelectorAll(':scope #divStatus ~ *').forEach(sib => sib.remove());
-			if(data.length)
+			if(data.length){
 				divStatus.style.display = 'none'
-			else
+			} else {
 				divStatus.innerText='No data'
+			}
 			// format: https://docs.github.com/en/rest/commits/commits
 			const media_ids = []
 			data.forEach(item=>{
-				if(!item.files && /(：|:)/.exec(item.commit.message.trim().slice(-1))){
-					media_ids.push(item.sha)
-				}
 				timeline.insertAdjacentHTML('beforeend', render({
 					id: item.sha,
 					author_avatar: item.author.avatar_url,
@@ -246,18 +253,20 @@
 					message: item.commit.message,
 					date: new Date(item.commit.author.date),
 				}))
+				if(!item.files && /(：|:)/.exec(item.commit.message.trim().slice(-1))){
+					media_ids.push(item.sha)
+				} else if (item.files) {
+					append_images(item.sha, item.files.map(f=>f.raw_url))
+				}
 			})
 			media_ids.forEach(async function(id){
 				const r = await (await fetch(GITHUB_API+'/'+id)).json()
-				const imgs = []
-				r.files.forEach(file=>{
-					if (/^static\/.+(.webp|.jpg|.jpeg|.png|.gif|.jxl|.avif)$/.exec(file.filename)) {
-						imgs.push(`<li><img src="${file.raw_url}"></li>`);
-
-				}})
-				timeline.querySelector('.tweet#post-'+id+' .tweet-content .medias').insertAdjacentHTML(
-					'beforeend', imgs.join('\n'))
+				append_images(id, r.files.map(f=>f.raw_url))
 			})
+		}
+		// do post
+		async function post_new(access_token,  text) {
+			'https://api.github.com/repos/${}/git/ref/heads/main'
 		}
 
 		function getCookie(name) {
@@ -297,10 +306,6 @@
 			}
 		});
 
-		// do post
-		async function post_new(access_token, text) {
-
-		}
 		const OAUTH_URL =  "https://github.com/login/oauth/authorize?scope=public_repo&client_id=Ov23lirVyDKVPnHhDOFw"
 		// bind post actions
 		btnPost.addEventListener('click', async function() {
