@@ -10,7 +10,6 @@ async function handler(request, env) {
     "client_secret": env.client_secret,
     "code": code,
   }
-  console.log(payload)
   const r = await fetch('https://github.com/login/oauth/access_token', {
     method: 'post', headers: {
       'Accept': 'application/json',
@@ -18,7 +17,8 @@ async function handler(request, env) {
     body: new URLSearchParams(payload).toString(),
     signal: AbortSignal.timeout(5000)})
   const res = await r.json()
-  if (res.scope == 'public_repo' && res.access_token) {
+  console.debug(code, res)
+  if (res.access_token) {
     rspGohome.headers.set('Set-Cookie', `access_token=${res.access_token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=20000`)
     return rspGohome
   } else {
