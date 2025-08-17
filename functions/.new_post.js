@@ -5,7 +5,7 @@ async function handler(request, env) {
     const repo = req_url.searchParams.get('repo')
     if (!repo) return new Response('', {status: 400})
     const access_token = getCookie(request.headers.get('cookie'), 'access_token')
-    const {msg} = await request.json()
+    const {message} = await request.json()
     if (!msg) return new Response('', {status: 400})
     const API_BASE = `https://api.github.com/repos/${repo}`
     const r1 = await fetch(`${API_BASE}/commits?per_page=1`, {
@@ -23,7 +23,7 @@ async function handler(request, env) {
     const r3 = await fetch(API_COMMIT_BASE, {
         method: 'post', header: {"Authorization": `Bearer ${access_token}`},
         signal: AbortSignal.timeout(5000), body: JSON.stringify({
-            message: msg, tree: last_tree, parents: [last_sha]
+            message: message, tree: last_tree, parents: [last_sha]
         }), credentials: 'include'
     })
     API_HEAD_BASE = `${API_BASE}/git/ref/heads/${branch}`
