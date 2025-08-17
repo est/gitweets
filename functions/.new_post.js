@@ -38,21 +38,27 @@ async function handler(request, env) {
     const r3_req = {
         message: message, tree: last_tree, parents: [last_sha]
     }
-    const r3 = await fetch_json(r3_api, {
+    const r3_opts = {
         method: 'post', header: {"Authorization": `Bearer ${access_token}`},
         body: JSON.stringify(r3_req), credentials: 'include'
-    })
+    }
+    const r3 = await fetch_json(r3_api, r3_opts)
     const new_sha = r3?.sha
-    if (!new_sha) return Response.json({
-        error: 'failed to commit', req: r3_req, rsp: r3, url: r3_api
-    }, {status: 400})
+    if (!new_sha){
+        console.log(r3_opts)
+         return Response.json({
+            error: 'failed to commit', req: r3_req, rsp: r3, url: r3_api
+        }, {status: 400})
+    }
     const r4_api = `${API_BASE}/git/ref/heads/${branch}`
-    const r4 = await fetch_json(r4_api, {
+    const r4_opts = {
         method: 'patch', header: {"Authorization": `Bearer ${access_token}`},
         body: JSON.stringify({
             sha: new_sha
         }), credentials: 'include'
-    })
+    }
+    const r4 = await fetch_json(r4_api, r4_opts)
+    console.debug(r4_opts)
     return Response.json(r4, {status: 201})
 }
 
