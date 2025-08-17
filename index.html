@@ -212,7 +212,8 @@
 				divStatus.innerText = "bad server"
 				return;
 			}
-			window.API_BASE = `https://api.github.com/repos/${servers[1]}`
+			window.REPO = servers[1]
+			window.API_BASE = `https://api.github.com/repos/${window.REPO}`
 			const params = {per_page: 10}
 			if(page){
 				params.page = page
@@ -264,7 +265,7 @@
 		}
 		// do post
 		async function post_new(access_token, text) {
-			const r1 = await fetch('/.new_post', {
+			const r1 = await fetch(`/.new_post?repo=${window.REPO}`, {
 				method: 'post', 'credentials': 'include',
 				body: JSON.stringify({'message': text})
 			})

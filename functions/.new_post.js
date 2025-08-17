@@ -5,12 +5,12 @@ function getCookie(cookie_str, name) {
         ?.split("=")[1]?.trim() || '');
 }
 
-export default async function onRequest(context) {
-    const req_url = new URL(context.request.url)
+async function handler(request, env) {
+    const req_url = new URL(request.url)
     const repo = req_url.searchParams.get('repo')
     if (!repo) return new Response('', {status: 400})
-    const access_token = getCookie(context.request.headers.get('cookie'), 'access_token')
-    const {message} = await context.request.json()
+    const access_token = getCookie(request.headers.get('cookie'), 'access_token')
+    const {message} = await request.json()
     if (!msg) return new Response('', {status: 400})
     const API_BASE = `https://api.github.com/repos/${repo}`
     const r1 = await fetch(`${API_BASE}/commits?per_page=1`, {
@@ -40,4 +40,8 @@ export default async function onRequest(context) {
         }), credentials: 'include'
     })
     return Response.json(await r4.json(), {status: 201})
+}
+
+export function onRequest(context) {
+  return handler(context.request, context.env)
 }
