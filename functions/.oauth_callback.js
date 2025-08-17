@@ -17,7 +17,7 @@ async function handler(request, env) {
       'Content-Type': 'application/x-www-form-urlencoded'},
     body: new URLSearchParams(payload).toString(),
     signal: AbortSignal.timeout(5000)})
-  res = await r.json()
+  const res = await r.json()
   if (res.scope == 'public_repo' && res.access_token) {
     rspGohome.headers.set('Set-Cookie', `access_token=${res.access_token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=20000`)
     return rspGohome
