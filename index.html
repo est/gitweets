@@ -166,6 +166,7 @@
 			</div>
 		</div>
 	</div>
+	<script type="module" src="./static/utils.js"></script>
 	<script><!--
 		// safe html
 		const sh=s=>s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')  
@@ -264,10 +265,13 @@
 		}
 		// do post
 		async function post_new(access_token, text) {
-			
+			const r1 = await fetch('/.new_post', {
+				method: 'post', 'credentials': 'include',
+				body: JSON.stringify({'message': text})
+			})
+			return await r1.json()
 		}
 		import {getCookie} from './static/utils.js'
-
 		// Modal functionality
 		// Using element IDs directly
 		function openModal() {
