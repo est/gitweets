@@ -52,13 +52,14 @@ async function handler(request, env) {
             error: 'failed to commit', req: r3_req, rsp: r3, url: r3_api
         }, {status: 400})
     }
-    const r4_api = `${API_BASE}/git/refs`
+    // https://docs.github.com/en/rest/git/refs?apiVersion=2022-11-28#create-a-reference
+    const r4_api = `${API_BASE}/git/refs/heads/${branch}`
     const r4_opts = {
-        method: 'post', headers: {
+        method: 'patch', headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${access_token}`},
         body: JSON.stringify({
-            ref: `refs/heads/${branch}`,
+            // ref: `refs/heads/${branch}`,
             sha: new_sha
         }), credentials: 'include'
     }
