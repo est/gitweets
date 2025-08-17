@@ -13,12 +13,10 @@ async function fetch_json(url, opts){
     const req = await fetch(url, opts)
     const rsp = await req.text()
     try{
-        let obj = JSON.parse(rsp)
+        return JSON.parse(rsp)
     } catch(err) {
         console.error(err, rsp)
-        let obj = null
     }
-    return obj
 }
 
 async function handler(request, env) {
