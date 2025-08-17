@@ -51,6 +51,7 @@ https://docs.github.com/en/rest/orgs/members?apiVersion=2022-11-28#create-an-org
 * [X] ~~404.html for single-page-app routing~~
 * [X] ~~用 blob API 发图~~
 * [X] ~~多图 flexbox 布局~~  玩不动了。就酱
+* [X] 分页，post 按钮和textarea (20250816)
 * [ ] login with Github
 * [ ] Cloudflare [Pages with Functions](https://developers.cloudflare.com/pages/platform/functions/get-started/)
 * [ ] 移动端响应式布局 🤣

@@ -133,9 +133,8 @@
 		.modal-content {background-color: #fff; margin: 10% auto; padding: 1rem; border: 1px solid #888; width: 40em; border-radius: 8px;}
 		.modal-body textarea {width: 100%; height: 150px; padding: 0.5rem; margin-bottom: 1rem; border: 1px solid #ccc; border-radius: 4px; resize: vertical; box-sizing: border-box;}
 		.modal-footer {display: flex; justify-content: flex-end; gap: 0.5rem;}
-		.modal-footer button {padding: 0.5rem 1rem; border: none; border-radius: 4px; cursor: pointer;}
+		.modal-footer button {padding: 0.5rem 1rem; border: none; border-radius: 4px; cursor: pointer; background-color: #ccc; color: #333;}
 		.modal #btnPost {background-color: #1da1f2; color: white;}
-		.modal #btnCancel {background-color: #ccc; color: #333;}
 	</style>
 </head>
 <body onload="load_timeline()">
@@ -147,7 +146,7 @@
 				<option selected="selected" value="https://github.com/est/gitweets">
 			</datalist>
 			<button id="btnRefresh" onclick="load_timeline()">🔄</button>
-			<button id="btnNewPost" onclick="javascript:composeModal.style.display='block';">✏️</button>
+			<button id="btnNewPost" onclick="openModal()">✏️</button>
 			<button id="btnPrev" disabled>⬅️</button>
 			<button id="btnNext">➡️</button>
 		</div>
@@ -163,7 +162,7 @@
 				<span id="btnClose" onclick="closeModal()">&times;</span>
 			</div>
 			<div class="modal-body">
-				<textarea id="tweetInput" placeholder="What's up?"></textarea>
+				<textarea id="inputTweet" placeholder="What's up?"></textarea>
 			</div>
 			<div class="modal-footer">
 				<button id="btnCancel" onclick="closeModal()">Cancel</button>
@@ -176,6 +175,8 @@
 		const sh=s=>s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')  
 		// show date
 		const sd=d=>new Date(d.getTime() - d.getTimezoneOffset()*60_000).toISOString().replace('T', ' ').split('.')[0]
+
+		// render timeline tweets
 		function render(o){
 			return `
 		<div class="tweet" id="post-${encodeURI(o.id)}">
@@ -190,6 +191,8 @@
 			</div>
 		</div>
 		`}
+
+		// load timeline 
 		async function load_timeline(page){
 			updatePaginationButtons();
 			divStatus.style.display = 'block'
@@ -257,13 +260,31 @@
 			})
 		}
 
-		// Modal functionality
-		// Using element IDs directly
-
-		function closeModal() {
-			composeModal.style.display = 'none';
+		function getCookie(name) {
+			return decodeURIComponent(document.cookie
+				.split(";")
+				.find(row => row.trim().startsWith(name + "="))
+				?.split("=")[1]?.trim() || '');
 		}
 
+		// Modal functionality
+		// Using element IDs directly
+		function openModal() {
+			if (getCookie('access_token')){
+				btnPost.innerText = 'Post'
+			} else {
+				inputTweet.value = ''
+				inputTweet.placeholder = 'Please login first'
+				inputTweet.disabled = true
+				btnPost.innerText = 'Login'
+			}
+			composeModal.style.display = 'block'
+		}
+		function closeModal() {
+			inputTweet.value = ''
+			inputTweet.placeholder = "What's up?"
+			composeModal.style.display = 'none'
+		}
 		// Close modal when clicking outside the modal content
 		window.addEventListener('click', function(event) {
 			if (event.target == composeModal) {
@@ -276,26 +297,35 @@
 			}
 		});
 
-		// Post tweet functionality (placeholder)
-		btnPost.addEventListener('click', function() {
-			const text = tweetInput.value;
-			if (text.trim()) {
-				alert('Tweet posted!\n\n' + text);
-				tweetInput.value = '';
+		// do post
+		async function post_new(access_token, text) {
+
+		}
+		const OAUTH_URL =  "https://github.com/login/oauth/authorize?scope=public_repo&client_id=Ov23lirVyDKVPnHhDOFw"
+		// bind post actions
+		btnPost.addEventListener('click', async function() {
+			const text = inputTweet.value.trim();
+			const access_token = getCookie('access_token')
+			if (access_token) {
+				if (!text){
+					inputTweet.placeholder = 'Type something here!'
+					inputTweet.value = '';
+					return
+				}
+				await post_new(access_token, text)
 				closeModal();
 			} else {
-				alert('Please enter a tweet.');
+				location.href = OAUTH_URL
 			}
 		});
+
 		// Pagination functionality
 		const urlParams = new URLSearchParams(window.location.search);
-		let currentPage = parseInt(urlParams.get('page')) || 1;
-		
+		let currentPage = parseInt(urlParams.get('page')) || 1;		
 		// Update pagination buttons state
 		function updatePaginationButtons() {
 			btnPrev.disabled = currentPage === 1;
 		}
-		
 		// Previous page button
 		btnPrev.addEventListener('click', function() {
 			if (currentPage > 1) {
@@ -312,7 +342,6 @@
 				updatePaginationButtons();
 			}
 		});
-		
 		// Next page button
 		btnNext.addEventListener('click', function() {
 			currentPage++;
