@@ -35,15 +35,17 @@ async function handler(request, env) {
     const branch = r2?.[0]?.name
     if (!branch){return Response.json({error: 'no branch', rsp: r2}, {status: 400})}
     const r3_api = `${API_BASE}/git/commits`
+    const r3_req = {
+        message: message, tree: last_tree, parents: [last_sha]
+    }
     const r3 = await fetch_json(r3_api, {
         method: 'post', header: {"Authorization": `Bearer ${access_token}`},
-        body: JSON.stringify({
-            message: message, tree: last_tree, parents: [last_sha]
-        }), credentials: 'include'
+        body: JSON.stringify(r3_req), credentials: 'include'
     })
     const new_sha = r3?.sha
     if (!new_sha) return Response.json({
-        error: 'failed to commit', rsp: r3, 'url': r3_api}, {status: 400})
+        error: 'failed to commit', req: r3_req, rsp: r3, url: r3_api
+    }, {status: 400})
     const r4_api = `${API_BASE}/git/ref/heads/${branch}`
     const r4 = await fetch_json(r4_api, {
         method: 'patch', header: {"Authorization": `Bearer ${access_token}`},
