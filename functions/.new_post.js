@@ -6,6 +6,7 @@ function getCookie(cookie_str, name) {
 }
 
 async function fetch_json(url, opts){
+    if (!opts) opts = {}
     opts.signal ||= AbortSignal.timeout(5000)
     opts.headers ||= {}
     opts.headers['User-Agent'] = 'gitweets/1.0 (cloudflare worker)'
