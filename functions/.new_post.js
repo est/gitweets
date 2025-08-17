@@ -62,7 +62,7 @@ async function handler(request, env) {
         }), credentials: 'include'
     }
     const r4 = await fetch_json(r4_api, r4_opts)
-    console.debug(r4_opts)
+    console.log(r4_api, r4_opts)
     return Response.json(r4, {status: 201})
 }
 
