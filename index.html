@@ -17,12 +17,8 @@
 			align-items: center;
 			gap: 1rem;
 		}
-		.banner h1 {
-			margin: 0;
-			color: #1da1f2;
-			font-size: 1.5rem;
-			white-space: nowrap;
-		}
+		.banner h1 {margin: 0;}
+		.banner h1 a {color: #1da1f2; font-size: 1.5rem; white-space: nowrap; text-decoration: none;}
 		.banner-controls {
 			display: flex;
 			justify-content: flex-end;
@@ -139,7 +135,7 @@
 </head>
 <body onload="load_timeline()">
 	<div class="banner">
-		<h1>gitweets</h1>
+		<h1><a href='/'>gitweets</a></h1>
 		<div class="banner-controls">
 			<input id="inputServer" list="optServers" placeholder="Select or type a server" value="">
 			<datalist id="optServers">
@@ -194,7 +190,7 @@
 
 		function append_images(sha1_id, urls){
 			const imgs = []
-			urls.forEach(url=>{
+			urls.forEach(url=>{  // 解析图片网址，并且重新拼URL，节约一次302跳转
 				const m = /\/([^\/]+)\/([^\/]+)\/raw\/([^\/]+)\/static%2F(.+.webp|.jpg|.jpeg|.png|.gif|.jxl|.avif)$/.exec(url)
 				if (m){
 					imgs.push(`<li><img src="https://raw.githubusercontent.com/${m[1]}/${m[2]}/${m[3]}/static/${decodeURIComponent(m[4])}"></li>`)
@@ -256,6 +252,7 @@
 					message: item.commit.message,
 					date: new Date(item.commit.author.date),
 				}))
+				// 消息以半角或者全角冒号结尾，表示有图片。
 				if(!item.files && /(：|:)/.exec(item.commit.message.trim().slice(-1))){
 					media_ids.push(item.sha)
 				} else if (item.files) {
@@ -268,8 +265,33 @@
 			})
 		}
 		// do post
-		async function post_new(access_token,  text) {
-			'https://api.github.com/repos/${}/git/ref/heads/main'
+		async function post_new(repo, access_token, text) {
+			const BRANCH = 'main'
+			API_HEAD_BASE = `https://api.github.com/repos/${repo}/git/ref/heads/${BRANCH}`
+			const r1 = await fetch(API_HEAD_BASE, {
+				method: 'get', signal: AbortSignal.timeout(5000),
+			})
+			const last_sha = (await r1.json())?.object?.sha
+			if (!last_sha) return
+			API_COMMIT_BASE = `https://api.github.com/repos/${repo}/git/commits`
+			const r2 = await fetch(`${API_COMMIT_BASE}/${last_sha}`, {
+				method: 'get', signal: AbortSignal.timeout(5000),
+			})
+			const tree_sha = (await r2.json())?.tree?.sha
+			if (!tree_sha) return
+			const r3 = await fetch(API_COMMIT_BASE, {
+				method: 'post', header: {Authorization: `Bearer ${access_token}`},
+				signal: AbortSignal.timeout(5000), body: JSON.stringify({
+					message: text, tree: [tree_sha], parents: last_sha
+				})
+			})
+			const new_sha = (await r3.json())?.sha
+			const r4 = await fetch(API_HEAD_BASE, {
+				method: 'patch', header: {Authorization: `Bearer ${access_token}`},
+				signal: AbortSignal.timeout(5000), body: JSON.stringify({
+					sha: new_sha
+				})
+			})
 		}
 
 		function getCookie(name) {
