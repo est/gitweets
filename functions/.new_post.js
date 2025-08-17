@@ -39,7 +39,9 @@ async function handler(request, env) {
         message: message, tree: last_tree, parents: [last_sha]
     }
     const r3_opts = {
-        method: 'post', header: {"Authorization": `Bearer ${access_token}`},
+        method: 'post', header: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${access_token}`},
         body: JSON.stringify(r3_req), credentials: 'include'
     }
     const r3 = await fetch_json(r3_api, r3_opts)
@@ -52,7 +54,9 @@ async function handler(request, env) {
     }
     const r4_api = `${API_BASE}/git/ref/heads/${branch}`
     const r4_opts = {
-        method: 'patch', header: {"Authorization": `Bearer ${access_token}`},
+        method: 'patch', header: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${access_token}`},
         body: JSON.stringify({
             sha: new_sha
         }), credentials: 'include'
