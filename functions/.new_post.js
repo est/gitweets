@@ -34,15 +34,18 @@ async function handler(request, env) {
     const r2 = await fetch_json(`${API_BASE}/commits/${last_sha}/branches-where-head`)
     const branch = r2?.[0]?.name
     if (!branch){return Response.json({error: 'no branch', rsp: r2}, {status: 400})}
-    const r3 = await fetch_json(`${API_BASE}/git/commits`, {
+    const r3_api = `${API_BASE}/git/commits`
+    const r3 = await fetch_json(r3_api, {
         method: 'post', header: {"Authorization": `Bearer ${access_token}`},
         body: JSON.stringify({
             message: message, tree: last_tree, parents: [last_sha]
         }), credentials: 'include'
     })
     const new_sha = r3?.sha
-    if (!new_sha) return Response.json({error: 'failed to commit', rsp: r3}, {status: 400})
-    const r4 = await fetch_json(`${API_BASE}/git/ref/heads/${branch}`, {
+    if (!new_sha) return Response.json({
+        error: 'failed to commit', rsp: r3, 'url': r3_api}, {status: 400})
+    const r4_api = `${API_BASE}/git/ref/heads/${branch}`
+    const r4 = await fetch_json(r4_api, {
         method: 'patch', header: {"Authorization": `Bearer ${access_token}`},
         body: JSON.stringify({
             sha: new_sha
