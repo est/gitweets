@@ -258,7 +258,7 @@
 				}
 			})
 			media_ids.forEach(async function(id){
-				const r = await (await fetch(GITHUB_API+'/'+id)).json()
+				const r = await (await fetch(`${API_BASE}/commits/${id}`)).json()
 				append_images(id, r.files.map(f=>f.raw_url))
 			})
 		}
@@ -277,18 +277,18 @@
 			const branch = (await r2.json())?.[0]?.name
 			API_COMMIT_BASE = `${API_BASE}/git/commits`
 			const r3 = await fetch(API_COMMIT_BASE, {
-				method: 'post', header: {Authorization: `Bearer ${access_token}`},
+				method: 'post', header: {"Authorization": `Bearer ${access_token}`},
 				signal: AbortSignal.timeout(5000), body: JSON.stringify({
 					message: text, tree: last_tree, parents: [last_sha]
-				})
+				}), credentials: 'include'
 			})
 			API_HEAD_BASE = `${API_BASE}/git/ref/heads/${branch}`
 			const new_sha = (await r3.json())?.sha
 			const r4 = await fetch(API_HEAD_BASE, {
-				method: 'patch', header: {Authorization: `Bearer ${access_token}`},
+				method: 'patch', header: {"Authorization": `Bearer ${access_token}`},
 				signal: AbortSignal.timeout(5000), body: JSON.stringify({
 					sha: new_sha
-				})
+				}), credentials: 'include'
 			})
 			return await r4.json()
 		}
