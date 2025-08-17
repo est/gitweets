@@ -1,6 +1,8 @@
 async function handler(request, env) {
   const req_url = new URL(request.url)
+  console.log(request.url, req_url)
   const code = (req_url.searchParams.get('code') || '').trim()
+  console.log(code)
   const rspGohome = Response.redirect('/', 302)
   if (code.length != 20 || !env.client_secret || !env.client_id){
     return rspGohome
@@ -10,6 +12,7 @@ async function handler(request, env) {
     "client_secret": env.client_secret,
     "code": code,
   })
+  console.log(payload.toString())
   const r = await fetch('https://github.com/login/oauth/access_token', {
     method: 'post', headers: {
       'Accept': 'application/json',
