@@ -11,7 +11,7 @@ async function handler(request, env) {
     if (!repo) return new Response('', {status: 400})
     const access_token = getCookie(request.headers.get('cookie'), 'access_token')
     const {message} = await request.json()
-    if (!msg) return new Response('', {status: 400})
+    if (!message) return new Response('', {status: 400})
     const API_BASE = `https://api.github.com/repos/${repo}`
     const r1 = await fetch(`${API_BASE}/commits?per_page=1`, {
         method: 'get', signal: AbortSignal.timeout(5000),
