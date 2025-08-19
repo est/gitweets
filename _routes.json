@@ -1,5 +1,0 @@
-{
-  "version": 1,
-  "include": ["/.oauth_callback", "/.new_post"],
-  "exclude": []
-}

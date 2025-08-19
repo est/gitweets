@@ -127,7 +127,7 @@
 		.modal-header h2 {margin: 0; color: #1da1f2;}
 		.modal #btnClose {font-size: 1.5rem; cursor: pointer;}
 		.modal-content {background-color: #fff; margin: 10% auto; padding: 1rem; border: 1px solid #888; width: 40em; border-radius: 8px;}
-		.modal-body textarea {width: 100%; height: 150px; padding: 0.5rem; margin-bottom: 1rem; border: 1px solid #ccc; border-radius: 4px; resize: vertical; box-sizing: border-box;}
+		.modal-body textarea {width: 100%; height: 200px; padding: 0.5rem; margin-bottom: 1rem; border: 1px solid #ccc; border-radius: 4px; resize: vertical; box-sizing: border-box;}
 		.modal-footer {display: flex; justify-content: flex-end; gap: 0.5rem;}
 		.modal-footer button {padding: 0.5rem 1rem; border: none; border-radius: 4px; cursor: pointer; background-color: #ccc; color: #333;}
 		.modal #btnPost {background-color: #1da1f2; color: white;}
@@ -284,7 +284,18 @@
 				btnPost.innerText = 'Post'
 			} else {
 				inputTweet.value = ''
-				inputTweet.placeholder = 'Please login first'
+				inputTweet.placeholder = `Login and make a tweet via Github REST API.
+
+Or you can post a tweet locally, clone the repo and
+git commit --alow-empty && git push
+
+This OAuth login will save an access_token into your browser cookie
+The default and minimal required scope is public_repo (no other way for now)
+Other planned methods:
+  - Fine Grained PAT
+  - Github App based single-repo
+  - deploy keys
+`;
 				inputTweet.disabled = true
 				btnPost.innerText = 'Login'
 			}
