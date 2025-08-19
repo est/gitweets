@@ -36,6 +36,7 @@ This is @est's fork of Yan's janky twitter replacement.
 
 ## 待办 ToDo:
 
+* [ ] 多repo通过localStorag切换。并且记住上一次的
 * [ ] 移动端响应式布局 🤣
 * [ ] 视频、音频控件
 * [ ] 网址 microformats 支持卡片
@@ -43,7 +44,7 @@ This is @est's fork of Yan's janky twitter replacement.
 * [ ] 本地 make 静态页面
 * [ ] `make delete` 方法
 * [ ] fix long text
-* [ ] 翻页 API
+* [X] 翻页 API
 * [X] ~~[verifications](https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification)~~
 * [X] ~~404.html for single-page-app routing~~
 * [X] ~~用 blob API 发图~~
