@@ -15,7 +15,7 @@ demo： https://f.est.im/
 > to follow someone: `git remote add <alias> <their fork url>`   
 > to retweet: `git cherry-pick <their “tweet”>`   
 
-A single html that renders git commit history as a feed timeline. You can static host your personal tweets anywhere. Make a tweet via Github REST API in the browser in case you don't have `git` locally.
+Your GIT commit messages as a microblogging service. A single html that renders github commit history as a feed timeline. You can static host your personal tweets anywhere. Make a tweet via Github REST API in the browser in case you don't have `git` locally.
 
 Post images: commit along with image files under `./static` path. The commit message must end with `:` (to reduce API calls to github.com). [Example](https://f.est.im/est/e0d4c46445517ba52ceda06d788e09760aaccce5)
 
