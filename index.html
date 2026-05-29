@@ -1,372 +1,1248 @@
-<!DOCTYPE html><html lang="en">
+<!DOCTYPE html><html lang="zh-CN">
 <head>
 	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 	<title>gitweets</title>
 	<style>
-		body {
-			font-family: sans-serif;
+		* {
+			margin: 0;
+			padding: 0;
+			box-sizing: border-box;
+			-webkit-tap-highlight-color: transparent;
 		}
-		.banner {
-			max-width: 45rem;
-			margin: 0 auto 1rem auto;
-			padding: 0.5rem 1rem;
-			border: 1px solid #ccc;
-			background-color: #f8f9fa;
+
+		body {
+			font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+			background-color: #ededed;
+			color: #191919;
+			line-height: 1.4;
+			-webkit-font-smoothing: antialiased;
+		}
+
+		.container {
+			max-width: 414px;
+			margin: 0 auto;
+			background-color: #ededed;
+			min-height: 100vh;
+			position: relative;
+		}
+
+		/* 顶部导航栏 */
+		.nav-bar {
+			position: fixed;
+			top: 0;
+			left: 50%;
+			transform: translateX(-50%);
+			width: 100%;
+			max-width: 414px;
+			height: 55px;
+			z-index: 1000;
 			display: flex;
 			align-items: center;
-			gap: 1rem;
+			justify-content: center;
+			padding: 0 16px;
+			transition: background-color 0.3s, color 0.3s;
+			background-color: transparent;
 		}
-		.banner h1 {margin: 0;}
-		.banner h1 a {color: #1da1f2; font-size: 1.5rem; white-space: nowrap; text-decoration: none;}
-		.banner-controls {
+
+		.nav-bar.scrolled {
+			background-color: #ededed;
+		}
+
+		.nav-bar .back-btn {
+			position: absolute;
+			left: 12px;
+			width: 24px;
+			height: 24px;
+			cursor: pointer;
+			text-decoration: none;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+
+		.nav-bar .back-btn svg {
+			width: 24px;
+			height: 24px;
+			fill: white;
+			transition: fill 0.3s;
+		}
+
+		.nav-bar.scrolled .back-btn svg {
+			fill: #191919;
+		}
+
+		.nav-bar .title {
+			font-size: 16px;
+			font-weight: 500;
+			color: transparent;
+			transition: color 0.3s;
+		}
+
+		.nav-bar.scrolled .title {
+			color: #191919;
+		}
+
+		.nav-bar .post-btn {
+			position: absolute;
+			right: 16px;
+			width: 24px;
+			height: 24px;
+			cursor: pointer;
+			background: none;
+			border: none;
+			padding: 0;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+
+		.nav-bar .post-btn svg {
+			width: 24px;
+			height: 24px;
+			fill: white;
+			transition: fill 0.3s;
+		}
+
+		.nav-bar.scrolled .post-btn svg {
+			fill: #191919;
+		}
+
+		/* 封面区域 */
+		.cover-section {
+			position: relative;
+			height: 0;
+			padding-bottom: 75%;
+			overflow: hidden;
+			background-color: #c0c0c0;
+		}
+
+		.cover-image {
+			position: absolute;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
+		}
+
+		.cover-overlay {
+			position: absolute;
+			bottom: 0;
+			left: 0;
+			right: 0;
+			padding: 20px 16px;
+			display: flex;
+			align-items: flex-end;
+			justify-content: flex-end;
+			background: linear-gradient(transparent, rgba(0, 0, 0, 0.3));
+		}
+
+		.cover-user-info {
+			display: flex;
+			align-items: center;
+			gap: 12px;
+		}
+
+		.cover-username {
+			font-size: 18px;
+			font-weight: 600;
+			color: white;
+			text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+		}
+
+		.cover-avatar {
+			width: 68px;
+			height: 68px;
+			border-radius: 8px;
+			border: 3px solid white;
+			overflow: hidden;
+			box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+		}
+
+		.cover-avatar img {
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
+		}
+
+		/* 分页指示器 */
+		.pagination-indicator {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			padding: 12px 16px;
+			background-color: white;
+			margin-top: 12px;
+			gap: 16px;
+		}
+
+		.pagination-indicator .page-btn {
+			width: 32px;
+			height: 32px;
+			border: none;
+			background-color: #f5f5f5;
+			border-radius: 4px;
+			cursor: pointer;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-size: 16px;
+			color: #191919;
+		}
+
+		.pagination-indicator .page-btn:disabled {
+			opacity: 0.4;
+			cursor: not-allowed;
+		}
+
+		.pagination-indicator .page-btn:hover:not(:disabled) {
+			background-color: #e5e5e5;
+		}
+
+		.pagination-indicator .page-info {
+			font-size: 14px;
+			color: #666;
+		}
+
+		/* 动态列表 */
+		.posts-list {
+			background-color: white;
+			margin-top: 2px;
+			padding-bottom: 80px;
+		}
+
+		.post-item {
+			padding: 12px 16px;
+			border-bottom: 1px solid #e5e5e5;
+		}
+
+		.post-item:last-child {
+			border-bottom: none;
+		}
+
+		.post-header {
+			display: flex;
+			align-items: flex-start;
+			margin-bottom: 10px;
+		}
+
+		.post-avatar {
+			width: 44px;
+			height: 44px;
+			border-radius: 4px;
+			overflow: hidden;
+			margin-right: 12px;
+			flex-shrink: 0;
+		}
+
+		.post-avatar img {
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
+		}
+
+		.post-meta {
+			flex: 1;
+			min-width: 0;
+		}
+
+		.post-username {
+			font-size: 16px;
+			font-weight: 600;
+			color: #174b73;
+			margin-bottom: 2px;
+			word-break: break-word;
+		}
+
+		.post-content {
+			font-size: 16px;
+			line-height: 1.5;
+			color: #191919;
+			margin-bottom: 10px;
+			word-break: break-word;
+			white-space: pre-wrap;
+		}
+
+		.post-location {
+			display: inline-flex;
+			align-items: center;
+			font-size: 13px;
+			color: #576b95;
+			margin-bottom: 4px;
+		}
+
+		.post-location svg {
+			width: 14px;
+			height: 14px;
+			margin-right: 4px;
+			fill: #576b95;
+		}
+
+		/* 图片网格 */
+		.post-images {
+			margin-bottom: 10px;
+		}
+
+		.image-grid {
+			display: grid;
+			gap: 4px;
+		}
+
+		.image-grid-1 {
+			grid-template-columns: 1fr;
+			max-width: 70%;
+		}
+
+		.image-grid-2 {
+			grid-template-columns: repeat(2, 1fr);
+		}
+
+		.image-grid-3 {
+			grid-template-columns: repeat(3, 1fr);
+		}
+
+		.image-grid-4 {
+			grid-template-columns: repeat(2, 1fr);
+		}
+
+		.image-grid-5,
+		.image-grid-6 {
+			grid-template-columns: repeat(3, 1fr);
+		}
+
+		.image-grid-7,
+		.image-grid-8,
+		.image-grid-9 {
+			grid-template-columns: repeat(3, 1fr);
+		}
+
+		.image-item {
+			aspect-ratio: 1;
+			overflow: hidden;
+			background-color: #f5f5f5;
+			cursor: pointer;
+		}
+
+		.image-item img {
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
+			transition: transform 0.2s;
+		}
+
+		.image-item:active img {
+			transform: scale(0.98);
+		}
+
+		/* 操作栏 */
+		.post-actions {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			margin-top: 0px;
+			padding-top: 0px;
+		}
+
+		.post-time {
+			font-size: 13px;
+			color: #999;
+		}
+
+		.action-menu-btn {
+			width: 28px;
+			height: 28px;
+			background-color: #f5f5f5;
+			border: none;
+			border-radius: 4px;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			cursor: pointer;
+			position: relative;
+		}
+
+		.action-menu-btn svg {
+			width: 18px;
+			height: 18px;
+			fill: #191919;
+		}
+
+		/* 弹出菜单 */
+		.action-popup {
+			position: absolute;
+			right: 0;
+			top: 100%;
+			background-color: #4c4c4c;
+			border-radius: 4px;
+			display: none;
+			z-index: 100;
+			min-width: 160px;
+			box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+		}
+
+		.action-popup.show {
+			display: flex;
+		}
+
+		.action-popup::after {
+			content: "";
+			position: absolute;
+			top: -6px;
+			right: 10px;
+			width: 0;
+			height: 0;
+			border-left: 6px solid transparent;
+			border-right: 6px solid transparent;
+			border-bottom: 6px solid #4c4c4c;
+		}
+
+		.popup-item {
+			flex: 1;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			gap: 8px;
+			padding: 12px 16px;
+			color: white;
+			font-size: 14px;
+			cursor: pointer;
+			white-space: nowrap;
+			border-right: 1px solid rgba(255, 255, 255, 0.1);
+		}
+
+		.popup-item:last-child {
+			border-right: none;
+		}
+
+		.popup-item svg {
+			width: 20px;
+			height: 20px;
+			fill: white;
+		}
+
+		.popup-item:active {
+			background-color: rgba(255, 255, 255, 0.1);
+		}
+
+		/* 点赞和评论区 */
+		.like-comment-section {
+			margin-top: 10px;
+			background-color: #f5f5f5;
+			border-radius: 4px;
+			overflow: hidden;
+		}
+
+		.likes-section {
+			padding: 8px 12px;
+			display: flex;
+			align-items: center;
+			gap: 6px;
+			font-size: 14px;
+			color: #174b73;
+			border-bottom: 1px solid #e5e5e5;
+		}
+
+		.likes-section svg {
+			width: 18px;
+			height: 18px;
+			fill: #174b73;
+			flex-shrink: 0;
+		}
+
+		.likes-names {
+			flex: 1;
+			word-break: break-word;
+		}
+
+		.comments-section {
+			padding: 0;
+		}
+
+		.comment-item {
+			padding: 8px 12px;
+			font-size: 14px;
+			line-height: 1.4;
+			border-bottom: 1px solid #e5e5e5;
+		}
+
+		.comment-item:last-child {
+			border-bottom: none;
+		}
+
+		.comment-author {
+			color: #174b73;
+			font-weight: 500;
+			margin-right: 4px;
+		}
+
+		.comment-text {
+			color: #191919;
+		}
+
+		/* 图片预览 */
+		.image-preview-overlay {
+			position: fixed;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			background-color: rgba(0, 0, 0, 0.95);
+			z-index: 2000;
+			display: none;
+			align-items: center;
+			justify-content: center;
+			cursor: pointer;
+		}
+
+		.image-preview-overlay.show {
+			display: flex;
+		}
+
+		.image-preview-overlay img {
+			max-width: 95%;
+			max-height: 90vh;
+			object-fit: contain;
+		}
+
+		/* 加载状态 */
+		.loading-state {
+			padding: 60px 20px;
+			text-align: center;
+			color: #999;
+		}
+
+		.loading-spinner {
+			width: 32px;
+			height: 32px;
+			border: 3px solid #e5e5e5;
+			border-top-color: #174b73;
+			border-radius: 50%;
+			animation: spin 0.8s linear infinite;
+			margin: 0 auto 16px;
+		}
+
+		@keyframes spin {
+			to { transform: rotate(360deg); }
+		}
+
+		/* 点赞动画 */
+		@keyframes likeAnimation {
+			0% { transform: scale(1); }
+			50% { transform: scale(1.3); }
+			100% { transform: scale(1); }
+		}
+
+		.like-animate {
+			animation: likeAnimation 0.3s ease;
+		}
+
+		/* 遮罩层 */
+		.overlay {
+			position: fixed;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			z-index: 50;
+			display: none;
+		}
+
+		.overlay.show {
+			display: block;
+		}
+
+		/* Modal */
+		.modal {
+			display: none;
+			position: fixed;
+			z-index: 3000;
+			left: 0;
+			top: 0;
+			width: 100%;
+			height: 100%;
+			background-color: rgba(0,0,0,0.4);
+		}
+
+		.modal-content {
+			background-color: #fff;
+			margin: 10% auto;
+			padding: 1rem;
+			border: 1px solid #888;
+			width: 90%;
+			max-width: 40em;
+			border-radius: 8px;
+		}
+
+		.modal-header {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			margin-bottom: 1rem;
+		}
+
+		.modal-header h2 {
+			margin: 0;
+			color: #174b73;
+		}
+
+		.modal-header .close-btn {
+			font-size: 1.5rem;
+			cursor: pointer;
+			color: #999;
+		}
+
+		.modal-body textarea {
+			width: 100%;
+			height: 200px;
+			padding: 0.5rem;
+			margin-bottom: 1rem;
+			border: 1px solid #ccc;
+			border-radius: 4px;
+			resize: vertical;
+			box-sizing: border-box;
+			font-family: inherit;
+			font-size: 14px;
+		}
+
+		.modal-footer {
 			display: flex;
 			justify-content: flex-end;
-			align-items: center;
-			flex-grow: 1;
+			gap: 0.5rem;
 		}
-		.banner input {
-			flex-grow: 1;
-			max-width: 20em;
-			padding: 0.5rem;
-			margin-right: 0.5rem;
-			border: 1px solid #ccc;
+
+		.modal-footer button {
+			padding: 0.5rem 1rem;
+			border: none;
 			border-radius: 4px;
-		}
-		.banner button {
-			margin-right: 0.5rem;
-			border: 2px solid #1da1f2;
-			border-radius: 4px;
-			background-color: transparent;
-			color: #1da1f2;
 			cursor: pointer;
-			transition: all 0.2s ease;
-			font-size: 1.2rem;
-			line-height: 1.5;
-		}
-		.banner button:hover {
-			background-color: #e8f5fe;
-			border-color: #0c85d0;
-		}
-		#timeline {
-			flex-direction: column;
-			max-width: 45rem;
-			margin: 0 auto;
-			padding: 1rem;
-			border: 1px solid #ccc;
+			background-color: #ccc;
+			color: #333;
+			font-size: 14px;
 		}
 
-	/* Loading indicator styles */
-	#divStatus {
-			display: flex;
-			justify-content: center;
-			align-items: center;
-			padding: 1rem;
-			border-radius: 8px;
-			background-color: #f8f9fa;
-			box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-			margin: 1rem auto;
-			width: fit-content;
-			font-size: 1.1rem;
-			color: #555;
+		.modal-footer .btn-post {
+			background-color: #174b73;
+			color: white;
 		}
 
-		.tweet {
-			display: flex;
-			padding-right: 1rem;
-			margin-bottom: 1em;
-		}
-		.tweet .avatar {
-			margin-right: 1rem;
-			width: 48px;
-			height: 48px;
-			border-radius: 50%;
-		}
-		.tweet .username {
-			font-size: 16px;
-			font-weight: bold;
-		}
-		.tweet .verified {
-			color: blue;
-		}
-		.tweet .datetime {
-			color:grey; font-size: 0.8em;
-			text-decoration: none;
-		}
-		.tweet .tweet-content {
-			max-width: 50em;
-		}
-		.tweet .tweet-content .medias {
-			display: flex;
-			flex-wrap: wrap;
-			margin-collapse: collapse;
-			list-style-type: none;
-	    margin: 0;
-	    padding-inline: 0;
-		}
-		.tweet .tweet-content li {
-			margin-collapse: collapse;
-			margin: 0 0.5rem 0.5rem 0;
-			flex-basis: 48%;
-			line-height: 0;
-		}
-		.tweet .tweet-content img {
-			width: 100%;
-		}
-		.tweet .tweet-content pre {
-			font-family: inherit;
-			margin: 0;
-			overflow-wrap: break-word;
-			overflow-y: auto;
-			color: #555;
+		/* 底部安全区 */
+		.safe-area-bottom {
+			height: env(safe-area-inset-bottom, 20px);
 		}
 
-		/* Modal styles */
-		.modal {display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.4);}
-		.modal-header {display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;}
-		.modal-header h2 {margin: 0; color: #1da1f2;}
-		.modal #btnClose {font-size: 1.5rem; cursor: pointer;}
-		.modal-content {background-color: #fff; margin: 10% auto; padding: 1rem; border: 1px solid #888; width: 40em; border-radius: 8px;}
-		.modal-body textarea {width: 100%; height: 200px; padding: 0.5rem; margin-bottom: 1rem; border: 1px solid #ccc; border-radius: 4px; resize: vertical; box-sizing: border-box;}
-		.modal-footer {display: flex; justify-content: flex-end; gap: 0.5rem;}
-		.modal-footer button {padding: 0.5rem 1rem; border: none; border-radius: 4px; cursor: pointer; background-color: #ccc; color: #333;}
-		.modal #btnPost {background-color: #1da1f2; color: white;}
+		@media (max-width: 414px) {
+			.container {
+				max-width: 100%;
+			}
+		}
 	</style>
 </head>
-<body onload="load_timeline()">
-	<div class="banner">
-		<h1><a href='/'>gitweets</a></h1>
-		<div class="banner-controls">
-			<input id="inputServer" list="optServers" placeholder="Select or type a server" value="">
-			<datalist id="optServers">
-				<option selected="selected" value="https://github.com/est/gitweets">
-			</datalist>
-			<button id="btnRefresh" onclick="load_timeline()">🔄</button>
-			<button id="btnNewPost" onclick="openModal()">✏️</button>
-			<button id="btnPrev" disabled>⬅️</button>
-			<button id="btnNext">➡️</button>
+<body>
+	<div class="container">
+		<!-- 顶部导航栏 -->
+		<div class="nav-bar" id="navBar">
+			<a class="back-btn" href="/">
+				<svg viewBox="0 0 24 24">
+					<path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+				</svg>
+			</a>
+			<span class="title" id="navTitle">gitweets</span>
+			<button class="post-btn" onclick="openModal()">
+				<svg viewBox="0 0 24 24">
+					<path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+				</svg>
+			</button>
 		</div>
+
+		<!-- 封面区域 -->
+		<div class="cover-section">
+			<img class="cover-image" src="https://picsum.photos/id/1018/800/600" alt="封面">
+			<div class="cover-overlay">
+				<div class="cover-user-info">
+					<span class="cover-username" id="coverUsername">Loading...</span>
+					<div class="cover-avatar">
+						<img id="coverAvatar" src="" alt="头像">
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- 分页指示器 -->
+		<div class="pagination-indicator" id="paginationIndicator" style="display:none;">
+			<button class="page-btn" id="btnPrev" disabled onclick="goPrevPage()">◀</button>
+			<span class="page-info" id="pageInfo">-</span>
+			<button class="page-btn" id="btnNext" disabled onclick="goNextPage()">▶</button>
+		</div>
+
+		<!-- 动态列表 -->
+		<div class="posts-list" id="postsList">
+			<div class="loading-state" id="loadingState">
+				<div class="loading-spinner"></div>
+				<div>正在加载...</div>
+			</div>
+		</div>
+
+		<!-- 图片预览 -->
+		<div class="image-preview-overlay" id="imagePreview">
+			<img src="" alt="预览图片" id="previewImage">
+		</div>
+
+		<!-- 遮罩层 -->
+		<div class="overlay" id="overlay"></div>
+
+		<div class="safe-area-bottom"></div>
 	</div>
-	<div id="timeline">
-		<div id="divStatus">Loading...</div>
-	</div>
+
 	<!-- Modal for composing tweet -->
 	<div id="composeModal" class="modal">
 		<div class="modal-content">
 			<div class="modal-header">
-				<h2>✍️</h2>
-				<span id="btnClose" onclick="closeModal()">&times;</span>
+				<h2>发推</h2>
+				<span class="close-btn" onclick="closeModal()">&times;</span>
 			</div>
 			<div class="modal-body">
 				<textarea id="inputTweet" placeholder="What's up?"></textarea>
 			</div>
 			<div class="modal-footer">
-				<button id="btnCancel" onclick="closeModal()">Cancel</button>
-				<button id="btnPost">Post</button>
+				<button onclick="closeModal()">取消</button>
+				<button class="btn-post" id="btnPost">发送</button>
 			</div>
 		</div>
 	</div>
-	<script><!--
+
+	<script>
 		// safe html
-		const sh=s=>s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')  
+		const sh = s => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+
 		// show date
-		const sd=d=>new Date(d.getTime() - d.getTimezoneOffset()*60_000).toISOString().replace('T', ' ').split('.')[0]
+		const sd = d => new Date(d.getTime() - d.getTimezoneOffset()*60_000).toISOString().replace('T', ' ').split('.')[0]
 
-		// render timeline tweets
-		function render(o){
-			return `
-		<div class="tweet" id="post-${encodeURI(o.id)}">
-			<a href="/${encodeURI(o.author_slug)}"><img class="avatar" src="${encodeURI(o.author_avatar)}"></a>
-			<div>
-				<span class="username${o.author_verified?' verified':''}">${sh(o.author_name)}</span>
-				<div class="tweet-content">
-				  <pre style="${o.message.length>1024?'font:12px monospace':''}">${sh(o.message)}</pre>
-				  <ul class="medias"></ul>
-				</div>
-				<a class="datetime" href="/${encodeURI(o.author_slug)}/${encodeURI(o.id)}">${sh(sd(o.date))}</a>
-			</div>
-		</div>
-		`}
+		// format relative time
+		function timeAgo(date) {
+			const now = new Date();
+			const diff = now - date;
+			const minutes = Math.floor(diff / 60000);
+			const hours = Math.floor(diff / 3600000);
+			const days = Math.floor(diff / 86400000);
 
-		function append_images(sha1_id, urls){
-			const imgs = []
-			urls.forEach(url=>{  // 解析图片网址，并且重新拼URL，节约一次302跳转
-				const m = /\/([^\/]+)\/([^\/]+)\/raw\/([^\/]+)\/static%2F(.+.webp|.jpg|.jpeg|.png|.gif|.jxl|.avif)$/.exec(url)
-				if (m){
-					imgs.push(`<li><img src="https://raw.githubusercontent.com/${m[1]}/${m[2]}/${m[3]}/static/${decodeURIComponent(m[4])}"></li>`)
-				}})
-			timeline.querySelector('.tweet#post-'+sha1_id+' .tweet-content .medias').insertAdjacentHTML(
-				'beforeend', imgs.join('\n'))
+			if (minutes < 1) return '刚刚';
+			if (minutes < 60) return minutes + '分钟前';
+			if (hours < 24) return hours + '小时前';
+			if (days < 7) return days + '天前';
+			if (days < 30) return Math.floor(days / 7) + '周前';
+			if (days < 365) return Math.floor(days / 30) + '个月前';
+			return Math.floor(days / 365) + '年前';
 		}
 
-		// load timeline 
-		async function load_timeline(page){
-			updatePaginationButtons();
-			divStatus.style.display = 'block'
-			divStatus.innerText = "Loading..."
-			if (!inputServer.value) {
-				inputServer.value = optServers.options[0].value
-			}
-			const servers = /github.com\/(\w+\/[\w\.]+)/.exec(inputServer.value)
-			if (!servers) {
-				divStatus.innerText = "bad server"
-				return;
-			}
-			window.REPO = servers[1]
-			window.API_BASE = `https://api.github.com/repos/${window.REPO}`
-			const params = {per_page: 10}
-			if(page){
-				params.page = page
-			}else {
-				params.page = currentPage
-			}
-			const m = /^\/(\w+)(?:\/([0-9a-fA-F]{40}))?$/.exec(location.pathname)
-			if (m && m.length == 3 && m[2])
-				params.sha = m[2]
-			if (m && m.length >  1)
-				params.author = m[1]
+		// format date for display
+		function formatDate(date) {
+			const y = date.getFullYear();
+			const m = String(date.getMonth() + 1).padStart(2, '0');
+			const d = String(date.getDate()).padStart(2, '0');
+			return `${y}-${m}-${d}`;
+		}
 
-			var data;
-			if (params.sha){
-				data = [await (await fetch(`${API_BASE}/commits/${params.sha}`)).json()]
+		// check if two dates are the same day
+		function isSameDay(d1, d2) {
+			return d1.getFullYear() === d2.getFullYear() &&
+				d1.getMonth() === d2.getMonth() &&
+				d1.getDate() === d2.getDate();
+		}
+
+		// Global state
+		let REPO = '';
+		let API_BASE = '';
+		let currentPage = 0; // 0 = first page
+		let loadedBuffer = []; // commits loaded from API but not yet displayed
+		let displayedPages = []; // array of {commits: [], startDate, endDate}
+		let isLoading = false;
+		let repoOwnerInfo = null;
+
+		// Load repo owner info for cover
+		async function loadOwnerInfo() {
+			try {
+				const resp = await fetch(API_BASE);
+				const data = await resp.json();
+				repoOwnerInfo = data.owner;
+				document.getElementById('coverUsername').textContent = repoOwnerInfo.login;
+				document.getElementById('coverAvatar').src = repoOwnerInfo.avatar_url;
+				document.getElementById('navTitle').textContent = REPO.split('/')[1] || 'gitweets';
+			} catch (e) {
+				console.error('Failed to load owner info:', e);
+				document.getElementById('coverUsername').textContent = REPO;
 			}
-			else{
-				data = await (await fetch(`${API_BASE}/commits?${new URLSearchParams(params).toString()}`)).json()
-			}
-			timeline.querySelectorAll(':scope #divStatus ~ *').forEach(sib => sib.remove());
-			if(data.length){
-				divStatus.style.display = 'none'
+		}
+
+		// Parse URL to get repo info
+		function parseUrl() {
+			// Try to get from path first
+			const m = /^\/(\w+)(?:\/([0-9a-fA-F]{40}))?$/.exec(location.pathname);
+			if (m) {
+				// This is a user/commit view, use default repo
+				REPO = 'est/gitweets';
 			} else {
-				divStatus.innerText='No data'
-			}
-			// format: https://docs.github.com/en/rest/commits/commits
-			const media_ids = []
-			data.forEach(item=>{
-				timeline.insertAdjacentHTML('beforeend', render({
-					id: item.sha,
-					author_avatar: item.author.avatar_url,
-					author_slug: item.author.login,
-					author_verified: item.commit.verification?.verified,
-					author_name: item.commit.author.name,
-					message: item.commit.message,
-					date: new Date(item.commit.author.date),
-				}))
-				// 消息以半角或者全角冒号结尾，表示有图片。
-				if(!item.files && /(：|:)/.exec(item.commit.message.trim().slice(-1))){
-					media_ids.push(item.sha)
-				} else if (item.files) {
-					append_images(item.sha, item.files.map(f=>f.raw_url))
+				// Check URL params
+				const urlParams = new URLSearchParams(window.location.search);
+				const repo = urlParams.get('repo');
+				if (repo) {
+					REPO = repo;
+				} else {
+					REPO = 'est/gitweets';
 				}
-			})
-			media_ids.forEach(async function(id){
-				const r = await (await fetch(`${API_BASE}/commits/${id}`)).json()
-				append_images(id, r.files.map(f=>f.raw_url))
-			})
+			}
+			API_BASE = `https://api.github.com/repos/${REPO}`;
 		}
-		// do post
-		async function post_new(access_token, text) {
-			const r1 = await fetch(`/.new_post?repo=${window.REPO}`, {
-				method: 'post', 'credentials': 'include',
-				body: JSON.stringify({'message': text})
-			})
-			return await r1.json()
+
+		// Fetch commits from API
+		async function fetchCommits(untilDate) {
+			const params = { per_page: 100 };
+			if (untilDate) {
+				params.until = untilDate.toISOString();
+			}
+
+			const m = /^\/(\w+)(?:\/([0-9a-fA-F]{40}))?$/.exec(location.pathname);
+			if (m && m[2]) {
+				// Single commit view
+				const data = await (await fetch(`${API_BASE}/commits/${m[2]}`)).json();
+				return [data];
+			}
+			if (m && m[1]) {
+				params.author = m[1];
+			}
+
+			const resp = await fetch(`${API_BASE}/commits?${new URLSearchParams(params).toString()}`);
+			return await resp.json();
 		}
+
+		// Find date boundary in commits array
+		// Returns index of first commit that is on a different day than the first commit
+		function findDateBoundary(commits) {
+			if (commits.length <= 1) return commits.length;
+
+			const firstDate = new Date(commits[0].commit.author.date);
+			for (let i = 1; i < commits.length; i++) {
+				const currDate = new Date(commits[i].commit.author.date);
+				if (!isSameDay(firstDate, currDate)) {
+					return i;
+				}
+			}
+			return commits.length; // All same day
+		}
+
+		// Load a page of commits
+		async function loadPage(pageIndex) {
+			if (isLoading) return;
+			isLoading = true;
+
+			const postsList = document.getElementById('postsList');
+			const loadingState = document.getElementById('loadingState');
+			loadingState.style.display = 'block';
+			postsList.querySelectorAll(':scope .post-item').forEach(el => el.remove());
+
+			try {
+				// Going backward - use cached pages
+				if (pageIndex < displayedPages.length && pageIndex >= 0) {
+					const page = displayedPages[pageIndex];
+					await renderPage(page.commits);
+					updatePagination(pageIndex);
+					loadingState.style.display = 'none';
+					return;
+				}
+
+				// Going forward - need to load new data
+				if (pageIndex === 0 && displayedPages.length === 0) {
+					// First load
+					const commits = await fetchCommits(null);
+					if (!commits || commits.length === 0) {
+						loadingState.innerHTML = '<div>没有数据</div>';
+						return;
+					}
+					await processAndDisplay(commits, pageIndex);
+				} else if (pageIndex === displayedPages.length) {
+					// Next page - load from buffer or fetch
+					if (loadedBuffer.length === 0) {
+						// Need to fetch more
+						const lastPage = displayedPages[displayedPages.length - 1];
+						const lastCommit = lastPage.commits[lastPage.commits.length - 1];
+						const untilDate = new Date(lastCommit.commit.author.date);
+						// Set to start of that day to include all commits from that day
+						untilDate.setHours(0, 0, 0, 0);
+
+						const commits = await fetchCommits(untilDate);
+						if (!commits || commits.length === 0) {
+							loadingState.innerHTML = '<div>没有更多数据了</div>';
+							return;
+						}
+						// Filter out already displayed commits
+						const lastDisplayedSha = lastCommit.sha;
+						const lastIdx = commits.findIndex(c => c.sha === lastDisplayedSha);
+						if (lastIdx >= 0) {
+							loadedBuffer = commits.slice(lastIdx + 1);
+						} else {
+							loadedBuffer = commits;
+						}
+					}
+
+					if (loadedBuffer.length === 0) {
+						loadingState.innerHTML = '<div>没有更多数据了</div>';
+						return;
+					}
+
+					await processAndDisplay(loadedBuffer, pageIndex);
+				}
+
+				loadingState.style.display = 'none';
+			} catch (e) {
+				console.error('Failed to load page:', e);
+				loadingState.innerHTML = '<div>加载失败，请重试</div>';
+			} finally {
+				isLoading = false;
+			}
+		}
+
+		// Process buffer and display a page
+		async function processAndDisplay(commits, pageIndex) {
+			const boundary = findDateBoundary(commits);
+			const pageCommits = commits.slice(0, boundary);
+			loadedBuffer = commits.slice(boundary);
+
+			displayedPages.push({
+				commits: pageCommits,
+				startDate: new Date(pageCommits[pageCommits.length - 1].commit.author.date),
+				endDate: new Date(pageCommits[0].commit.author.date)
+			});
+
+			await renderPage(pageCommits);
+			updatePagination(pageIndex);
+		}
+
+		// Render a page of commits
+		async function renderPage(commits) {
+			const postsList = document.getElementById('postsList');
+
+			// First, render all posts without images
+			const mediaIds = [];
+			commits.forEach(item => {
+				postsList.insertAdjacentHTML('beforeend', renderPost(item));
+				// Check if message ends with : (indicator for images)
+				if (!item.files && /(：|:)\s*$/.test(item.commit.message.trim())) {
+					mediaIds.push(item.sha);
+				}
+			});
+
+			// Then load images for posts that need them
+			mediaIds.forEach(async function(id) {
+				try {
+					const resp = await fetch(`${API_BASE}/commits/${id}`);
+					const data = await resp.json();
+					appendImages(id, data.files);
+				} catch (e) {
+					console.error('Failed to load images for commit', id, e);
+				}
+			});
+		}
+
+		// Append images to a post
+		function appendImages(sha, files) {
+			if (!files) return;
+
+			const images = [];
+			files.forEach(f => {
+				const m = /\/static%2F(.+\.(webp|jpg|jpeg|png|gif|jxl|avif))$/i.exec(f.raw_url || f.filename || '');
+				if (m) {
+					images.push(`https://raw.githubusercontent.com/${REPO}/${sha}/static/${decodeURIComponent(m[1])}`);
+				}
+			});
+
+			if (images.length === 0) return;
+
+			const postEl = document.getElementById(`post-${sha}`);
+			if (!postEl) return;
+
+			const count = Math.min(images.length, 9);
+			const gridClass = `image-grid-${count}`;
+			let gridItems = '';
+			for (let i = 0; i < count; i++) {
+				gridItems += `
+					<div class="image-item" data-src="${images[i]}">
+						<img src="${images[i]}" alt="图片" loading="lazy">
+					</div>
+				`;
+			}
+
+			const imagesHtml = `<div class="post-images"><div class="image-grid ${gridClass}">${gridItems}</div></div>`;
+
+			// Insert after content, before location
+			const contentEl = postEl.querySelector('.post-content');
+			if (contentEl) {
+				contentEl.insertAdjacentHTML('afterend', imagesHtml);
+			}
+		}
+
+		// Update pagination controls
+		function updatePagination(pageIndex) {
+			currentPage = pageIndex;
+			const indicator = document.getElementById('paginationIndicator');
+			const pageInfo = document.getElementById('pageInfo');
+			const btnPrev = document.getElementById('btnPrev');
+			const btnNext = document.getElementById('btnNext');
+
+			indicator.style.display = 'flex';
+
+			if (displayedPages[pageIndex]) {
+				const page = displayedPages[pageIndex];
+				const start = formatDate(page.startDate);
+				const end = formatDate(page.endDate);
+				pageInfo.textContent = start === end ? start : `${start} ~ ${end}`;
+			}
+
+			btnPrev.disabled = pageIndex === 0;
+			// Always allow next - will show "no more data" if needed
+			btnNext.disabled = false;
+		}
+
+		// Render a single post
+		function renderPost(item) {
+			const authorName = item.commit.author.name;
+			const authorAvatar = item.author?.avatar_url || '';
+			const authorSlug = item.author?.login || '';
+			const message = item.commit.message;
+			const date = new Date(item.commit.author.date);
+			const isVerified = item.commit.verification?.verified;
+
+			// Location stub (for future use)
+			const locationHtml = ''; // placeholder for future
+
+			// Like/comment section (UI only)
+			const likeCommentHtml = `
+				<div class="like-comment-section">
+					<div class="likes-section" style="display:none;">
+						<svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+						<div class="likes-names"></div>
+					</div>
+					<div class="comments-section" style="display:none;"></div>
+				</div>
+			`;
+
+			return `
+				<div class="post-item" id="post-${item.sha}">
+					<div class="post-header">
+						<div class="post-avatar">
+							<a href="/${encodeURI(authorSlug)}">
+								<img src="${encodeURI(authorAvatar)}" alt="头像">
+							</a>
+						</div>
+						<div class="post-meta">
+							<div class="post-username">
+								<a href="/${encodeURI(authorSlug)}" style="color: inherit; text-decoration: none;">${sh(authorName)}</a>
+								${isVerified ? ' <span style="color:blue;">✓</span>' : ''}
+							</div>
+						</div>
+					</div>
+					<div class="post-content">${sh(message)}</div>
+					${locationHtml}
+					<div class="post-actions">
+						<div class="post-time">${timeAgo(date)}</div>
+						<button class="action-menu-btn" onclick="toggleMenu(this)">
+							<svg viewBox="0 0 24 24">
+								<circle cx="12" cy="6" r="2"/>
+								<circle cx="12" cy="12" r="2"/>
+								<circle cx="12" cy="18" r="2"/>
+							</svg>
+							<div class="action-popup">
+								<div class="popup-item" onclick="handleLike(event, this)">
+									<svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+									<span>赞</span>
+								</div>
+								<div class="popup-item" onclick="handleComment(event)">
+									<svg viewBox="0 0 24 24"><path d="M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4 6V3c0-.55-.45-1-1-1H3c-.55 0-1 .45-1 1v14l4-4h10c.55 0 1-.45 1-1z"/></svg>
+									<span>评论</span>
+								</div>
+							</div>
+						</button>
+					</div>
+					${likeCommentHtml}
+				</div>
+			`;
+		}
+
+		// Toggle menu
+		window.toggleMenu = function(btn) {
+			const popup = btn.querySelector('.action-popup');
+			const isOpen = popup.classList.contains('show');
+
+			// Close all menus
+			document.querySelectorAll('.action-popup').forEach(p => p.classList.remove('show'));
+			overlay.classList.remove('show');
+
+			if (!isOpen) {
+				popup.classList.add('show');
+				overlay.classList.add('show');
+			}
+		};
+
+		// Handle like (UI only)
+		window.handleLike = function(event, item) {
+			event.stopPropagation();
+			const svg = item.querySelector('svg');
+			svg.style.fill = '#F73757';
+			item.classList.add('like-animate');
+
+			setTimeout(() => {
+				item.classList.remove('like-animate');
+			}, 300);
+
+			// Close menu
+			document.querySelectorAll('.action-popup').forEach(p => p.classList.remove('show'));
+			overlay.classList.remove('show');
+
+			// Show hint
+			alert('功能开发中~');
+		};
+
+		// Handle comment (UI only)
+		window.handleComment = function(event) {
+			event.stopPropagation();
+			// Close menu
+			document.querySelectorAll('.action-popup').forEach(p => p.classList.remove('show'));
+			overlay.classList.remove('show');
+
+			alert('功能开发中~');
+		};
+
+		// Click overlay to close menu
+		overlay.addEventListener('click', function() {
+			document.querySelectorAll('.action-popup').forEach(p => p.classList.remove('show'));
+			overlay.classList.remove('show');
+		});
+
+		// Image preview
+		document.addEventListener('click', function(e) {
+			const imageItem = e.target.closest('.image-item');
+			if (imageItem) {
+				const src = imageItem.dataset.src;
+				previewImage.src = src;
+				imagePreview.classList.add('show');
+			}
+
+			if (e.target === imagePreview) {
+				imagePreview.classList.remove('show');
+			}
+		});
+
+		// Pagination
+		window.goPrevPage = function() {
+			if (currentPage > 0) {
+				loadPage(currentPage - 1);
+			}
+		};
+
+		window.goNextPage = function() {
+			loadPage(currentPage + 1);
+		};
+
+		// Scroll listener for nav bar
+		window.addEventListener('scroll', function() {
+			if (window.scrollY > 200) {
+				navBar.classList.add('scrolled');
+			} else {
+				navBar.classList.remove('scrolled');
+			}
+		});
+
+		// Modal functionality
+		const OAUTH_URL = "https://github.com/login/oauth/authorize?scope=public_repo&client_id=Ov23lirVyDKVPnHhDOFw";
+
 		function getCookie(cookie_str, name) {
 			return decodeURIComponent(cookie_str || '')
 				.split(";")
 				.find(row => row.trim().startsWith(name + "="))
 				?.split("=")[1]?.trim() || '';
 		}
-		// Modal functionality
-		// Using element IDs directly
+
 		function openModal() {
-			if (getCookie(document.cookie, 'access_token')){
-				btnPost.innerText = 'Post'
+			if (getCookie(document.cookie, 'access_token')) {
+				btnPost.innerText = '发送';
+				inputTweet.disabled = false;
+				inputTweet.placeholder = "What's up?";
 			} else {
-				inputTweet.value = ''
+				inputTweet.value = '';
 				inputTweet.placeholder = `Login and make a tweet via Github REST API.
 
 Or you can post a tweet locally, clone the repo and
-git commit --alow-empty && git push
+git commit --allow-empty && git push
 
 This OAuth login will save an access_token into your browser cookie
-The default and minimal required scope is public_repo (no other way for now)
-Other planned methods:
-  - Fine Grained PAT
-  - Github App based single-repo
-  - deploy keys
+The default and minimal required scope is public_repo
 `;
-				inputTweet.disabled = true
-				btnPost.innerText = 'Login'
+				inputTweet.disabled = true;
+				btnPost.innerText = 'Login';
 			}
-			composeModal.style.display = 'block'
+			composeModal.style.display = 'block';
 		}
+
 		function closeModal() {
-			inputTweet.value = ''
-			inputTweet.placeholder = "What's up?"
-			composeModal.style.display = 'none'
+			inputTweet.value = '';
+			inputTweet.placeholder = "What's up?";
+			composeModal.style.display = 'none';
 		}
-		// Close modal when clicking outside the modal content
+
+		// Close modal when clicking outside
 		window.addEventListener('click', function(event) {
 			if (event.target == composeModal) {
 				closeModal();
 			}
 		});
+
 		window.addEventListener('keydown', function(event) {
 			if (event.key === 'Escape') {
 				closeModal();
 			}
 		});
 
-		const OAUTH_URL =  "https://github.com/login/oauth/authorize?scope=public_repo&client_id=Ov23lirVyDKVPnHhDOFw"
-		// bind post actions
+		// Post button handler
 		btnPost.addEventListener('click', async function() {
 			const text = inputTweet.value.trim();
-			const access_token = getCookie(document.cookie, 'access_token')
+			const access_token = getCookie(document.cookie, 'access_token');
 			if (access_token) {
-				if (!text){
-					inputTweet.placeholder = 'Type something here!'
+				if (!text) {
+					inputTweet.placeholder = 'Type something here!';
 					inputTweet.value = '';
-					return
+					return;
 				}
-				await post_new(access_token, text)
-				closeModal();
-				load_timeline(1)
+				btnPost.innerText = '发送中...';
+				btnPost.disabled = true;
+				try {
+					const r1 = await fetch(`/.new_post?repo=${REPO}`, {
+						method: 'post',
+						credentials: 'include',
+						body: JSON.stringify({ 'message': text })
+					});
+					await r1.json();
+					closeModal();
+					// Reset and reload
+					displayedPages = [];
+					loadedBuffer = [];
+					currentPage = 0;
+					loadPage(0);
+				} catch (e) {
+					alert('发送失败: ' + e.message);
+				} finally {
+					btnPost.innerText = '发送';
+					btnPost.disabled = false;
+				}
 			} else {
-				location.href = OAUTH_URL
+				location.href = OAUTH_URL;
 			}
 		});
 
-		// Pagination functionality
-		const urlParams = new URLSearchParams(window.location.search);
-		let currentPage = parseInt(urlParams.get('page')) || 1;		
-		// Update pagination buttons state
-		function updatePaginationButtons() {
-			btnPrev.disabled = currentPage === 1;
-		}
-		// Previous page button
-		btnPrev.addEventListener('click', function() {
-			if (currentPage > 1) {
-				currentPage--;
-				if (currentPage === 1) {
-					// Remove page parameter for first page
-					const url = new URL(window.location);
-					url.searchParams.delete('page');
-					history.pushState(null, '', url);
-				} else {
-					history.pushState(null, '', `?page=${currentPage}`);
-				}
-				load_timeline(currentPage);
-				updatePaginationButtons();
-			}
+		// Initialize
+		document.addEventListener('DOMContentLoaded', function() {
+			parseUrl();
+			loadOwnerInfo();
+			loadPage(0);
 		});
-		// Next page button
-		btnNext.addEventListener('click', function() {
-			currentPage++;
-			history.pushState(null, '', `?page=${currentPage}`);
-			load_timeline(currentPage);
-			updatePaginationButtons();
-		});
-	--></script>
+	</script>
 </body>
 </html>
