@@ -668,19 +668,19 @@
 			</div>
 		</div>
 
-		<!-- 分页指示器 -->
-		<div class="pagination-indicator" id="paginationIndicator" style="display:none;">
-			<button class="page-btn" id="btnPrev" disabled onclick="goPrevPage()">◀</button>
-			<span class="page-info" id="pageInfo">-</span>
-			<button class="page-btn" id="btnNext" disabled onclick="goNextPage()">▶</button>
-		</div>
-
 		<!-- 动态列表 -->
 		<div class="posts-list" id="postsList">
 			<div class="loading-state" id="loadingState">
 				<div class="loading-spinner"></div>
 				<div>正在加载...</div>
 			</div>
+		</div>
+
+		<!-- 分页指示器 -->
+		<div class="pagination-indicator" id="paginationIndicator" style="display:none;">
+			<button class="page-btn" id="btnPrev" disabled onclick="goPrevPage()">◀</button>
+			<span class="page-info" id="pageInfo">-</span>
+			<button class="page-btn" id="btnNext" disabled onclick="goNextPage()">▶</button>
 		</div>
 
 		<!-- 图片预览 -->
@@ -815,19 +815,19 @@
 			return await resp.json();
 		}
 
-		// Find date boundary in commits array
-		// Returns index of first commit that is on a different day than the first commit
+// Find date boundary in commits array
+		// Requires at least 20 items, then finds the first date change
 		function findDateBoundary(commits) {
 			if (commits.length <= 1) return commits.length;
 
 			const firstDate = new Date(commits[0].commit.author.date);
 			for (let i = 1; i < commits.length; i++) {
 				const currDate = new Date(commits[i].commit.author.date);
-				if (!isSameDay(firstDate, currDate)) {
+				if (!isSameDay(firstDate, currDate) && i >= 20) {
 					return i;
 				}
 			}
-			return commits.length; // All same day
+			return commits.length;
 		}
 
 		// Load a page of commits
