@@ -1502,10 +1502,12 @@ The default and minimal required scope is public_repo
 
 			for (let attempt = 0; attempt < maxAttempts; attempt++) {
 				if (usePica && p) {
-					// 使用 pica 缩放
-					const result = await p.resize(img, {
-						width,
-						height,
+					// 使用 pica 缩放（pica 8.0 API: resize(from, to, options)）
+					const targetCanvas = document.createElement('canvas');
+					targetCanvas.width = width;
+					targetCanvas.height = height;
+
+					await p.resize(img, targetCanvas, {
 						quality: 3,        // Lanczos 3-lobe
 						alpha: true,       // 保持透明度
 						unsharpAmount: 80, // 锐化
@@ -1514,7 +1516,7 @@ The default and minimal required scope is public_repo
 					});
 
 					blob = await new Promise((resolve) => {
-						result.toBlob((blob) => {
+						targetCanvas.toBlob((blob) => {
 							resolve(blob);
 						}, 'image/avif', quality);
 					});
