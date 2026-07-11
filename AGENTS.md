@@ -42,9 +42,10 @@ git checkout dev
 git reset --soft main
 git commit -m "feat: 功能描述"
 
-# 合并到 main
+# 合并到 main（使用 --squash 只产生 1 个 commit）
 git checkout main
-git merge dev --no-ff -m "merge: 合并功能分支"
+git merge --squash dev
+git commit -m "feat: 功能描述"
 
 # 切换回 dev 继续开发
 git checkout dev
