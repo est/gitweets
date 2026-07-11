@@ -636,6 +636,83 @@
 			color: white;
 		}
 
+		/* 图片预览网格（发帖前） */
+		.image-preview-grid {
+			display: grid;
+			gap: 8px;
+			margin-bottom: 12px;
+			min-height: 0;
+		}
+
+		.image-preview-grid:empty {
+			display: none;
+		}
+
+		.image-preview-grid.cols-1 { grid-template-columns: 1fr; max-width: 50%; }
+		.image-preview-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+		.image-preview-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+		.image-preview-grid.cols-4 { grid-template-columns: repeat(2, 1fr); }
+		.image-preview-grid.cols-6 { grid-template-columns: repeat(3, 1fr); }
+		.image-preview-grid.cols-9 { grid-template-columns: repeat(3, 1fr); }
+
+		.preview-item {
+			position: relative;
+			aspect-ratio: 1;
+			overflow: hidden;
+			border-radius: 4px;
+			background-color: #f5f5f5;
+		}
+
+		.preview-item img {
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
+		}
+
+		.preview-item .remove-btn {
+			position: absolute;
+			top: 4px;
+			right: 4px;
+			width: 20px;
+			height: 20px;
+			background-color: rgba(0,0,0,0.5);
+			border: none;
+			border-radius: 50%;
+			color: white;
+			font-size: 14px;
+			cursor: pointer;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+
+		.preview-item.add-btn {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			background-color: #f5f5f5;
+			border: 1px dashed #ccc;
+			cursor: pointer;
+		}
+
+		.preview-item.add-btn:hover {
+			background-color: #e5e5e5;
+		}
+
+		.preview-item.add-btn svg {
+			fill: #666;
+		}
+
+		.image-count {
+			font-size: 12px;
+			color: #999;
+			margin-bottom: 8px;
+		}
+
+		.image-count:empty {
+			display: none;
+		}
+
 		/* 底部安全区 */
 		.safe-area-bottom {
 			height: env(safe-area-inset-bottom, 20px);
@@ -712,7 +789,11 @@
 				<span class="close-btn" onclick="closeModal()">&times;</span>
 			</div>
 			<div class="modal-body">
-				<textarea id="inputTweet" placeholder="What's up?"></textarea>
+				<div class="image-preview-grid" id="imagePreviewGrid">
+					<!-- 图片预览和 + 按钮将在这里动态添加 -->
+				</div>
+				<div class="image-count" id="imageCount"></div>
+				<textarea id="inputTweet" placeholder="内容以 : 结尾可显示图片"></textarea>
 			</div>
 			<div class="modal-footer">
 				<button onclick="closeModal()">取消</button>
@@ -1182,7 +1263,7 @@
 			if (getCookie(document.cookie, 'access_token')) {
 				btnPost.innerText = '发送';
 				inputTweet.disabled = false;
-				inputTweet.placeholder = "What's up?";
+				inputTweet.placeholder = "内容以 : 结尾可显示图片";
 			} else {
 				inputTweet.value = '';
 				inputTweet.placeholder = `Login and make a tweet via Github REST API.
@@ -1203,6 +1284,134 @@ The default and minimal required scope is public_repo
 			inputTweet.value = '';
 			inputTweet.placeholder = "What's up?";
 			composeModal.style.display = 'none';
+			// 清理图片选择状态
+			selectedImages.forEach(img => URL.revokeObjectURL(img.url));
+			selectedImages = [];
+			updateImagePreview();
+		}
+
+		// 图片选择功能
+		let selectedImages = []; // 存储 {file, url, filename} 对
+		const MAX_IMAGES = 9;
+		const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
+		const imagePreviewGrid = document.getElementById('imagePreviewGrid');
+		const imageCount = document.getElementById('imageCount');
+		const fileInput = document.createElement('input');
+		fileInput.type = 'file';
+		fileInput.accept = 'image/*';
+		fileInput.multiple = true;
+		fileInput.style.display = 'none';
+		document.body.appendChild(fileInput);
+
+		// 生成文件名：MMDD-{seq}.{ext}
+		function generateFilename(file) {
+			const now = new Date();
+			const month = String(now.getMonth() + 1).padStart(2, '0');
+			const day = String(now.getDate()).padStart(2, '0');
+			const seq = String(selectedImages.length + 1).padStart(3, '0');
+			const ext = file.name.split('.').pop() || 'jpg';
+			return `${month}${day}-${seq}.${ext}`;
+		}
+
+		// 文件选择处理
+		fileInput.addEventListener('change', function(e) {
+			const files = Array.from(e.target.files);
+			if (!files.length) return;
+
+			const remaining = MAX_IMAGES - selectedImages.length;
+			if (remaining <= 0) {
+				alert(`最多选择 ${MAX_IMAGES} 张图片`);
+				fileInput.value = '';
+				return;
+			}
+
+			let added = 0;
+			files.forEach(file => {
+				if (added >= remaining) return;
+
+				// 验证文件类型
+				if (!file.type.startsWith('image/')) {
+					alert(`${file.name} 不是图片文件`);
+					return;
+				}
+
+				// 验证文件大小
+				if (file.size > MAX_FILE_SIZE) {
+					alert(`${file.name} 超过 5MB 限制`);
+					return;
+				}
+
+				const url = URL.createObjectURL(file);
+				const filename = generateFilename(file);
+				selectedImages.push({ file, url, filename });
+				added++;
+			});
+
+			if (files.length > remaining) {
+				alert(`已达上限，只添加了前 ${remaining} 张`);
+			}
+
+			updateImagePreview();
+			fileInput.value = ''; // 重置 input
+		});
+
+		// 触发文件选择
+		function triggerFileSelect() {
+			fileInput.click();
+		}
+
+		// 移除图片
+		function removeImage(index) {
+			URL.revokeObjectURL(selectedImages[index].url);
+			selectedImages.splice(index, 1);
+			updateImagePreview();
+		}
+		window.removeImage = removeImage;
+		window.triggerFileSelect = triggerFileSelect;
+
+		// 更新预览网格
+		function updateImagePreview() {
+			const count = selectedImages.length;
+
+			// 清空网格
+			imagePreviewGrid.innerHTML = '';
+
+			// 更新列数类名
+			imagePreviewGrid.className = 'image-preview-grid';
+			if (count === 1) imagePreviewGrid.classList.add('cols-1');
+			else if (count === 2) imagePreviewGrid.classList.add('cols-2');
+			else if (count === 3) imagePreviewGrid.classList.add('cols-3');
+			else if (count === 4) imagePreviewGrid.classList.add('cols-4');
+			else if (count <= 6) imagePreviewGrid.classList.add('cols-6');
+			else if (count <= 9) imagePreviewGrid.classList.add('cols-9');
+
+			// 添加预览项
+			selectedImages.forEach((img, index) => {
+				const item = document.createElement('div');
+				item.className = 'preview-item';
+				item.innerHTML = `
+					<img src="${img.url}" alt="预览">
+					<button class="remove-btn" onclick="removeImage(${index})">&times;</button>
+				`;
+				imagePreviewGrid.appendChild(item);
+			});
+
+			// 添加 + 按钮（如果未达到上限）
+			if (count < 9) {
+				const addBtn = document.createElement('div');
+				addBtn.className = 'preview-item add-btn';
+				addBtn.onclick = triggerFileSelect;
+				addBtn.innerHTML = `
+					<svg viewBox="0 0 24 24" width="32" height="32">
+						<path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+					</svg>
+				`;
+				imagePreviewGrid.appendChild(addBtn);
+			}
+
+			// 更新数量指示器
+			imageCount.textContent = count > 0 ? `${count}/9` : '';
 		}
 
 		// Close modal when clicking outside
@@ -1218,39 +1427,144 @@ The default and minimal required scope is public_repo
 			}
 		});
 
+		// 压缩图片到目标大小
+		async function compressImage(file, targetSize = 100 * 1024) {
+			// 如果已经小于目标大小，直接返回
+			if (file.size <= targetSize) {
+				return file;
+			}
+
+			return new Promise((resolve) => {
+				const img = new Image();
+				img.onload = () => {
+					const canvas = document.createElement('canvas');
+					const ctx = canvas.getContext('2d');
+
+					// 计算缩放比例
+					let width = img.width;
+					let height = img.height;
+					const ratio = Math.sqrt(targetSize / file.size) * 0.8; // 留一些余量
+
+					width = Math.round(width * ratio);
+					height = Math.round(height * ratio);
+
+					// 最小尺寸限制
+					if (width < 320) {
+						width = 320;
+						height = Math.round(img.height * (320 / img.width));
+					}
+
+					canvas.width = width;
+					canvas.height = height;
+					ctx.drawImage(img, 0, 0, width, height);
+
+					canvas.toBlob((blob) => {
+						resolve(blob);
+					}, 'image/jpeg', 0.85);
+				};
+				img.src = URL.createObjectURL(file);
+			});
+		}
+
 		// Post button handler
 		btnPost.addEventListener('click', async function() {
 			const text = inputTweet.value.trim();
 			const access_token = getCookie(document.cookie, 'access_token');
-			if (access_token) {
-				if (!text) {
-					inputTweet.placeholder = 'Type something here!';
-					inputTweet.value = '';
-					return;
-				}
-				btnPost.innerText = '发送中...';
-				btnPost.disabled = true;
-				try {
-					const r1 = await fetch(`/.new_post?repo=${REPO}`, {
-						method: 'post',
-						credentials: 'include',
-						body: JSON.stringify({ 'message': text })
-					});
-					await r1.json();
-					closeModal();
-					// Reset and reload
-					displayedPages = [];
-					loadedBuffer = [];
-					currentPage = 0;
-					loadPage(0);
-				} catch (e) {
-					alert('发送失败: ' + e.message);
-				} finally {
-					btnPost.innerText = '发送';
-					btnPost.disabled = false;
-				}
-			} else {
+
+			if (!access_token) {
 				location.href = OAUTH_URL;
+				return;
+			}
+
+			if (selectedImages.length === 0 && !text) {
+				inputTweet.placeholder = 'Type something here!';
+				return;
+			}
+
+			btnPost.innerText = '发送中...';
+			btnPost.disabled = true;
+
+			try {
+				const formData = new FormData();
+				formData.append('repo', REPO);
+				formData.append('message', text);
+
+				// 压缩并添加图片
+				if (selectedImages.length > 0) {
+					btnPost.innerText = '压缩图片中...';
+					for (const img of selectedImages) {
+						const compressed = await compressImage(img.file);
+						formData.append('images', compressed, img.filename);
+					}
+				}
+
+				btnPost.innerText = '发送中...';
+				const r1 = await fetch('/.new_post', {
+					method: 'POST',
+					credentials: 'include',
+					body: formData
+				});
+
+				const result = await r1.json();
+				if (result.error) {
+					throw new Error(result.error);
+				}
+
+				closeModal();
+				// 清理预览
+				selectedImages.forEach(img => URL.revokeObjectURL(img.url));
+				selectedImages = [];
+				updateImagePreview();
+
+				// 重置并重新加载
+				displayedPages = [];
+				loadedBuffer = [];
+				currentPage = 0;
+				loadPage(0);
+			} catch (e) {
+				alert('发送失败: ' + e.message);
+			} finally {
+				btnPost.innerText = '发送';
+				btnPost.disabled = false;
+			}
+		});
+
+		// 拖拽上传支持
+		const modalContent = document.querySelector('.modal-content');
+
+		modalContent.addEventListener('dragover', (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			modalContent.style.borderColor = '#174b73';
+		});
+
+		modalContent.addEventListener('dragleave', (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			modalContent.style.borderColor = '';
+		});
+
+		modalContent.addEventListener('drop', (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			modalContent.style.borderColor = '';
+
+			const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+			if (files.length > 0) {
+				// 调用图片添加函数
+				files.forEach(file => {
+					if (selectedImages.length >= 9) return;
+					if (!file.type.startsWith('image/')) return;
+					if (file.size > 5 * 1024 * 1024) {
+						alert(`${file.name} 超过 5MB 限制`);
+						return;
+					}
+
+					const url = URL.createObjectURL(file);
+					const filename = generateFilename(file);
+					selectedImages.push({ file, url, filename });
+				});
+				updateImagePreview();
 			}
 		});
 
