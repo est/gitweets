@@ -2,6 +2,7 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+	<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗯️</text></svg>">
 	<title>gitweets</title>
 	<style>
 		* {
@@ -142,6 +143,8 @@
 			display: flex;
 			align-items: center;
 			gap: 12px;
+			text-decoration: none;
+			color: inherit;
 		}
 
 		.cover-username {
@@ -581,7 +584,10 @@
 			border: 1px solid #888;
 			width: 90%;
 			max-width: 40em;
+			max-height: 80vh;
 			border-radius: 8px;
+			display: flex;
+			flex-direction: column;
 		}
 
 		.modal-header {
@@ -600,6 +606,12 @@
 			font-size: 1.5rem;
 			cursor: pointer;
 			color: #999;
+		}
+
+		.modal-body {
+			flex: 1;
+			overflow-y: auto;
+			min-height: 0;
 		}
 
 		.modal-body textarea {
@@ -642,6 +654,8 @@
 			gap: 8px;
 			margin-bottom: 12px;
 			min-height: 0;
+			max-height: 200px;
+			overflow-y: auto;
 		}
 
 		.image-preview-grid:empty {
@@ -746,12 +760,12 @@
 		<div class="cover-section">
 			<img class="cover-image" src="https://picsum.photos/id/1018/800/600" alt="封面">
 			<div class="cover-overlay">
-				<div class="cover-user-info">
+				<a href="/" class="cover-user-info">
 					<span class="cover-username" id="coverUsername">Loading...</span>
 					<div class="cover-avatar">
 						<img id="coverAvatar" src="" alt="头像">
 					</div>
-				</div>
+				</a>
 			</div>
 		</div>
 
@@ -1427,6 +1441,18 @@ The default and minimal required scope is public_repo
 			}
 		});
 
+		// pica 实例（懒加载）
+		let picaInstance = null;
+
+		// 加载 pica 库
+		async function loadPica() {
+			if (!picaInstance) {
+				const module = await import('https://cdn.jsdelivr.net/npm/pica@8.0.0/dist/pica.min.js');
+				picaInstance = module.default ? module.default() : pica();
+			}
+			return picaInstance;
+		}
+
 		// 压缩图片到目标大小
 		async function compressImage(file, targetSize = 100 * 1024) {
 			// 如果已经小于目标大小，直接返回
@@ -1434,36 +1460,58 @@ The default and minimal required scope is public_repo
 				return file;
 			}
 
-			return new Promise((resolve) => {
-				const img = new Image();
-				img.onload = () => {
-					const canvas = document.createElement('canvas');
-					const ctx = canvas.getContext('2d');
+			// 计算目标尺寸
+			const img = new Image();
+			img.src = URL.createObjectURL(file);
 
-					// 计算缩放比例
-					let width = img.width;
-					let height = img.height;
-					const ratio = Math.sqrt(targetSize / file.size) * 0.8; // 留一些余量
+			await new Promise((resolve) => {
+				img.onload = resolve;
+			});
 
-					width = Math.round(width * ratio);
-					height = Math.round(height * ratio);
+			const ratio = Math.sqrt(targetSize / file.size) * 0.8;
+			let width = Math.round(img.width * ratio);
+			let height = Math.round(img.height * ratio);
 
-					// 最小尺寸限制
-					if (width < 320) {
-						width = 320;
-						height = Math.round(img.height * (320 / img.width));
-					}
+			// 最小尺寸限制
+			if (width < 640) {
+				width = 640;
+				height = Math.round(img.height * (640 / img.width));
+			}
 
-					canvas.width = width;
-					canvas.height = height;
-					ctx.drawImage(img, 0, 0, width, height);
+			// 使用 pica 进行高质量缩放
+			try {
+				const p = await loadPica();
+				const result = await p.resize(img, {
+					width,
+					height,
+					quality: 3,        // Lanczos 3-lobe
+					alpha: true,       // 保持透明度
+					unsharpAmount: 80, // 锐化
+					unsharpRadius: 0.6,
+					unsharpThreshold: 2
+				});
 
+				return new Promise((resolve) => {
+					result.toBlob((blob) => {
+						resolve(blob);
+					}, 'image/avif', 0.85);
+				});
+			} catch (e) {
+				console.error('Pica load failed, fallback to canvas:', e);
+				// fallback 到原生 Canvas
+				const canvas = document.createElement('canvas');
+				const ctx = canvas.getContext('2d');
+				canvas.width = width;
+				canvas.height = height;
+				ctx.clearRect(0, 0, width, height);
+				ctx.drawImage(img, 0, 0, width, height);
+
+				return new Promise((resolve) => {
 					canvas.toBlob((blob) => {
 						resolve(blob);
-					}, 'image/jpeg', 0.85);
-				};
-				img.src = URL.createObjectURL(file);
-			});
+					}, 'image/avif', 0.85);
+				});
+			}
 		}
 
 		// Post button handler
@@ -1489,12 +1537,13 @@ The default and minimal required scope is public_repo
 				formData.append('repo', REPO);
 				formData.append('message', text);
 
-				// 压缩并添加图片
+				// 浏览器压缩图片
 				if (selectedImages.length > 0) {
 					btnPost.innerText = '压缩图片中...';
-					for (const img of selectedImages) {
-						const compressed = await compressImage(img.file);
-						formData.append('images', compressed, img.filename);
+					for (let i = 0; i < selectedImages.length; i++) {
+						btnPost.innerText = `压缩图片 ${i+1}/${selectedImages.length}...`;
+						const compressed = await compressImage(selectedImages[i].file);
+						formData.append('images', compressed, selectedImages[i].filename);
 					}
 				}
 
