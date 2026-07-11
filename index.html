@@ -203,6 +203,11 @@
 		.pagination-indicator .page-info {
 			font-size: 14px;
 			color: #666;
+			cursor: pointer;
+		}
+
+		.pagination-indicator .page-info:hover {
+			color: #333;
 		}
 
 		/* 动态列表 */
@@ -684,7 +689,7 @@
 		<!-- 分页指示器 -->
 		<div class="pagination-indicator" id="paginationIndicator" style="display:none;">
 			<button class="page-btn" id="btnPrev" disabled onclick="goPrevPage()">◀</button>
-			<span class="page-info" id="pageInfo">-</span>
+			<span class="page-info" id="pageInfo" onclick="refreshCurrentPage()">-</span>
 			<button class="page-btn" id="btnNext" disabled onclick="goNextPage()">▶</button>
 		</div>
 
@@ -1034,7 +1039,7 @@
 				<div class="post-item" id="post-${item.sha}">
 					<div class="post-header">
 						<div class="post-avatar">
-							<a href="/${encodeURI(authorSlug)}">
+							<a href="/">
 								<img src="${encodeURI(authorAvatar)}" alt="头像">
 							</a>
 						</div>
@@ -1140,11 +1145,18 @@
 		window.goPrevPage = function() {
 			if (currentPage > 0) {
 				loadPage(currentPage - 1);
+				window.scrollTo(0, 0);
 			}
 		};
 
 		window.goNextPage = function() {
 			loadPage(currentPage + 1);
+			window.scrollTo(0, 0);
+		};
+
+		window.refreshCurrentPage = function() {
+			loadPage(currentPage);
+			window.scrollTo(0, 0);
 		};
 
 		// Scroll listener for nav bar
