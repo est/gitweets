@@ -29,24 +29,30 @@
 
 ### 1. 开发分支工作流
 
+**重要：dev 分支是长期分支，不要删除！**
+
 ```bash
-# 创建 dev 分支
-git checkout -b dev
+# 切换到 dev 分支
+git checkout dev
 
 # 开发功能
 # ...
 
 # 测试没问题后，squash 成一个提交
-git reset --soft <base-commit>
+git reset --soft main
 git commit -m "feat: 功能描述"
 
 # 合并到 main
 git checkout main
 git merge dev --no-ff -m "merge: 合并功能分支"
 
-# 删除 dev 分支
-git branch -d dev
+# 切换回 dev 继续开发
+git checkout dev
 ```
+
+**永远不要删除 dev 分支！**
+
+**永远不要在 main 分支直接开发！所有修改都在 dev 分支进行！**
 
 ### 2. 代码验证
 

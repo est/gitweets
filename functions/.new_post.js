@@ -37,8 +37,15 @@ async function processImages(images) {
 async function createBlob(repo, content, token) {
     const API_BASE = `https://api.github.com/repos/${repo}`;
     
-    // 将 ArrayBuffer 转换为 Base64
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(content)));
+    // 将 ArrayBuffer 转换为 Base64（分块处理避免堆栈溢出）
+    const bytes = new Uint8Array(content);
+    let binary = '';
+    const chunkSize = 8192; // 每次处理 8KB
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+        const chunk = bytes.subarray(i, i + chunkSize);
+        binary += String.fromCharCode.apply(null, chunk);
+    }
+    const base64 = btoa(binary);
     
     const response = await fetch_json(`${API_BASE}/git/blobs`, {
         method: 'POST',
