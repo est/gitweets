@@ -19,60 +19,16 @@ async function fetch_json(url, opts){
     }
 }
 
-// 计算压缩后的宽度
-function calculateWidth(originalSize) {
-    // 目标：压缩到 ~100KB
-    // 假设压缩后大小约为原来的 1/10
-    const targetPixels = (100 * 1024 * 10) * (originalSize / (100 * 1024));
-    const maxWidth = 1920;
-    
-    // 假设 16:9 比例
-    let width = Math.sqrt(targetPixels * (16/9));
-    width = Math.min(width, maxWidth);
-    return Math.round(width);
-}
-
-// 处理单张图片
-async function processImage(image) {
-    const buffer = await image.arrayBuffer();
-    
-    // 小于 100KB 保留原图
-    if (buffer.byteLength < 100 * 1024) {
-        return {
-            content: buffer,
-            filename: image.name,
-            type: image.type
-        };
-    }
-    
-    // 大于 100KB 使用 CF Image Resizing
-    const width = calculateWidth(buffer.byteLength);
-    
-    // 创建一个临时 URL 用于 CF Image Resizing
-    // 注意：CF Image Resizing 需要一个可访问的 URL
-    // 这里我们使用 data URL 或者需要其他方式
-    // 由于 Cloudflare Functions 环境限制，可能需要使用 WASM 库
-    
-    // 简化处理：返回原图，让 GitHub 存储原图
-    // 实际生产环境可能需要使用 @cfimages/resizing 或类似库
-    return {
-        content: buffer,
-        filename: image.name,
-        type: image.type
-    };
-}
-
-// 批量处理图片
+// 批量处理图片（前端已压缩，后端直接返回）
 async function processImages(images) {
     const results = [];
     for (const image of images) {
-        try {
-            const processed = await processImage(image);
-            results.push(processed);
-        } catch (e) {
-            console.error('Failed to process image:', e);
-            // 跳过失败的图片
-        }
+        const buffer = await image.arrayBuffer();
+        results.push({
+            content: buffer,
+            filename: image.name,
+            type: image.type
+        });
     }
     return results;
 }
@@ -157,7 +113,7 @@ function validateImage(image) {
         return { valid: false, error: `${image.name} 不是图片文件` };
     }
     
-    // 验证文件大小 (5MB)
+    // 验证文件大小 (5MB，前端会压缩到 ~100KB)
     if (image.size > 5 * 1024 * 1024) {
         return { valid: false, error: `${image.name} 超过 5MB 限制` };
     }
@@ -215,80 +171,78 @@ async function handler(request, env) {
                 return Response.json({ error: '最多选择 9 张图片' }, { status: 400 });
             }
         }
-    
-    // 处理图片
-    let processedImages = [];
-    if (images.length > 0) {
-        processedImages = await processImages(images);
-        console.log(`Processed ${processedImages.length} of ${images.length} images`);
-        processedImages.forEach(img => {
-            console.log(`  ${img.filename}: ${img.content.byteLength} bytes`);
-        });
-    }
-    
-    const access_token = getCookie(request.headers.get('cookie'), 'access_token')
-    
-    // 创建图片 Blobs
-    let blobResults = [];
-    if (processedImages.length > 0) {
-        blobResults = await createBlobs(repo, processedImages, access_token);
-        console.log(`Created ${blobResults.length} blobs`);
-    }
-    
-    const API_BASE = `https://api.github.com/repos/${repo}`
-    const r1 = await fetch_json(`${API_BASE}/commits?per_page=1`)
-    const last_sha = r1?.[0]?.sha
-    const last_tree = r1?.[0]?.commit?.tree?.sha
-    if (!last_sha || !last_tree) return Response.json({error: 'no last commit', rsp: r1}, {status: 400})
-    const r2 = await fetch_json(`${API_BASE}/commits/${last_sha}/branches-where-head`)
-    const branch = r2?.[0]?.name
-    if (!branch){return Response.json({error: 'no branch', rsp: r2}, {status: 400})}
-    
-    // 创建新 Tree（如果有图片）
-    let new_tree_sha = last_tree;
-    if (blobResults.length > 0) {
-        new_tree_sha = await createTree(repo, last_tree, blobResults, access_token);
-        console.log(`Created new tree: ${new_tree_sha}`);
-    }
-    
-    // 创建 Commit
-    const commitMessage = processedImages.length > 0 && !message.endsWith(':')
-        ? message + ':'
-        : message;
-    
-    const r3_api = `${API_BASE}/git/commits`
-    const r3_req = {
-        message: commitMessage, tree: new_tree_sha, parents: [last_sha]
-    }
-    const r3_opts = {
-        method: 'post', headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${access_token}`},
-        body: JSON.stringify(r3_req), credentials: 'include'
-    }
-    const r3 = await fetch_json(r3_api, r3_opts)
-    const new_sha = r3?.sha
-    if (!new_sha){
-        console.log(r3_opts)
-         return Response.json({
-            error: 'failed to commit', req: r3_req, rsp: r3, url: r3_api
-        }, {status: 400})
-    }
-    // https://docs.github.com/en/rest/git/refs?apiVersion=2022-11-28#create-a-reference
-    const r4_api = `${API_BASE}/git/refs/heads/${branch}`
-    const r4_opts = {
-        method: 'patch', headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${access_token}`},
-        body: JSON.stringify({
-            // ref: `refs/heads/${branch}`,
-            sha: new_sha
-        }), credentials: 'include'
-    }
-    const r4 = await fetch_json(r4_api, r4_opts)
-    console.log(r4_api, r4_opts)
-    return Response.json(r4, {status: 201})
-    
+        
+        // 处理图片
+        let processedImages = [];
+        if (images.length > 0) {
+            processedImages = await processImages(images);
+            console.log(`Processed ${processedImages.length} of ${images.length} images`);
+            processedImages.forEach(img => {
+                console.log(`  ${img.filename}: ${img.content.byteLength} bytes`);
+            });
+        }
+        
+        const access_token = getCookie(request.headers.get('cookie'), 'access_token')
+        
+        // 创建图片 Blobs
+        let blobResults = [];
+        if (processedImages.length > 0) {
+            blobResults = await createBlobs(repo, processedImages, access_token);
+            console.log(`Created ${blobResults.length} blobs`);
+        }
+        
+        const API_BASE = `https://api.github.com/repos/${repo}`
+        const r1 = await fetch_json(`${API_BASE}/commits?per_page=1`)
+        const last_sha = r1?.[0]?.sha
+        const last_tree = r1?.[0]?.commit?.tree?.sha
+        if (!last_sha || !last_tree) return Response.json({error: 'no last commit', rsp: r1}, {status: 400})
+        const r2 = await fetch_json(`${API_BASE}/commits/${last_sha}/branches-where-head`)
+        const branch = r2?.[0]?.name
+        if (!branch) return Response.json({error: 'no branch', rsp: r2}, {status: 400})
+        
+        // 创建新 Tree（如果有图片）
+        let new_tree_sha = last_tree;
+        if (blobResults.length > 0) {
+            new_tree_sha = await createTree(repo, last_tree, blobResults, access_token);
+            console.log(`Created new tree: ${new_tree_sha}`);
+        }
+        
+        // 创建 Commit
+        const commitMessage = processedImages.length > 0 && !message.endsWith(':')
+            ? message + ':'
+            : message;
+        
+        const r3_api = `${API_BASE}/git/commits`
+        const r3_req = {
+            message: commitMessage, tree: new_tree_sha, parents: [last_sha]
+        }
+        const r3_opts = {
+            method: 'post', headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${access_token}`},
+            body: JSON.stringify(r3_req), credentials: 'include'
+        }
+        const r3 = await fetch_json(r3_api, r3_opts)
+        const new_sha = r3?.sha
+        if (!new_sha) {
+            console.log(r3_opts)
+            return Response.json({
+                error: 'failed to commit', req: r3_req, rsp: r3, url: r3_api
+            }, {status: 400})
+        }
+        
+        // https://docs.github.com/en/rest/git/refs?apiVersion=2022-11-28#create-a-reference
+        const r4_api = `${API_BASE}/git/refs/heads/${branch}`
+        const r4_opts = {
+            method: 'patch', headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${access_token}`},
+            body: JSON.stringify({sha: new_sha}), credentials: 'include'
+        }
+        const r4 = await fetch_json(r4_api, r4_opts)
+        console.log(r4_api, r4_opts)
+        return Response.json(r4, {status: 201})
+        
     } catch (e) {
         console.error('Handler error:', e);
         return Response.json({ error: '服务器错误' }, { status: 500 });
