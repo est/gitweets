@@ -1444,23 +1444,28 @@ The default and minimal required scope is public_repo
 		// pica 实例（懒加载）
 		let picaInstance = null;
 
-		// 加载 pica 库
+		// 加载 pica 库（使用 unpkg 更稳定）
 		async function loadPica() {
 			if (!picaInstance) {
-				const module = await import('https://cdn.jsdelivr.net/npm/pica@8.0.0/dist/pica.min.js');
-				picaInstance = module.default ? module.default() : pica();
+				try {
+					const module = await import('https://unpkg.com/pica@8.0.0/dist/pica.min.js');
+					picaInstance = module.default ? module.default() : pica();
+				} catch (e) {
+					console.error('Failed to load pica:', e);
+					throw e;
+				}
 			}
 			return picaInstance;
 		}
 
-		// 压缩图片到目标大小
+		// 压缩图片到目标大小（迭代压缩，确保接近目标）
 		async function compressImage(file, targetSize = 100 * 1024) {
 			// 如果已经小于目标大小，直接返回
 			if (file.size <= targetSize) {
 				return file;
 			}
 
-			// 计算目标尺寸
+			// 计算目标尺寸（更激进的压缩比例）
 			const img = new Image();
 			img.src = URL.createObjectURL(file);
 
@@ -1468,7 +1473,8 @@ The default and minimal required scope is public_repo
 				img.onload = resolve;
 			});
 
-			const ratio = Math.sqrt(targetSize / file.size) * 0.8;
+			// 初始压缩比例：基于目标大小计算，留更多余量
+			let ratio = Math.sqrt(targetSize / file.size) * 0.6;
 			let width = Math.round(img.width * ratio);
 			let height = Math.round(img.height * ratio);
 
@@ -1478,40 +1484,73 @@ The default and minimal required scope is public_repo
 				height = Math.round(img.height * (640 / img.width));
 			}
 
-			// 使用 pica 进行高质量缩放
+			// 尝试使用 pica 进行高质量缩放
+			let usePica = true;
+			let p = null;
 			try {
-				const p = await loadPica();
-				const result = await p.resize(img, {
-					width,
-					height,
-					quality: 3,        // Lanczos 3-lobe
-					alpha: true,       // 保持透明度
-					unsharpAmount: 80, // 锐化
-					unsharpRadius: 0.6,
-					unsharpThreshold: 2
-				});
-
-				return new Promise((resolve) => {
-					result.toBlob((blob) => {
-						resolve(blob);
-					}, 'image/avif', 0.85);
-				});
+				p = await loadPica();
 			} catch (e) {
-				console.error('Pica load failed, fallback to canvas:', e);
-				// fallback 到原生 Canvas
-				const canvas = document.createElement('canvas');
-				const ctx = canvas.getContext('2d');
-				canvas.width = width;
-				canvas.height = height;
-				ctx.clearRect(0, 0, width, height);
-				ctx.drawImage(img, 0, 0, width, height);
-
-				return new Promise((resolve) => {
-					canvas.toBlob((blob) => {
-						resolve(blob);
-					}, 'image/avif', 0.85);
-				});
+				console.error('Pica not available, using canvas:', e);
+				usePica = false;
 			}
+
+			// 迭代压缩，直到接近目标大小
+			let blob = null;
+			let quality = 0.7; // 初始质量
+			const minQuality = 0.3;
+			const maxAttempts = 3;
+
+			for (let attempt = 0; attempt < maxAttempts; attempt++) {
+				if (usePica && p) {
+					// 使用 pica 缩放
+					const result = await p.resize(img, {
+						width,
+						height,
+						quality: 3,        // Lanczos 3-lobe
+						alpha: true,       // 保持透明度
+						unsharpAmount: 80, // 锐化
+						unsharpRadius: 0.6,
+						unsharpThreshold: 2
+					});
+
+					blob = await new Promise((resolve) => {
+						result.toBlob((blob) => {
+							resolve(blob);
+						}, 'image/avif', quality);
+					});
+				} else {
+					// fallback 到原生 Canvas
+					const canvas = document.createElement('canvas');
+					const ctx = canvas.getContext('2d');
+					canvas.width = width;
+					canvas.height = height;
+					ctx.clearRect(0, 0, width, height);
+					ctx.drawImage(img, 0, 0, width, height);
+
+					blob = await new Promise((resolve) => {
+						canvas.toBlob((blob) => {
+							resolve(blob);
+						}, 'image/avif', quality);
+					});
+				}
+
+				// 检查是否接近目标大小
+				if (blob.size <= targetSize * 1.1) {
+					break; // 在 10% 误差范围内，接受
+				}
+
+				// 继续压缩：降低质量或尺寸
+				if (attempt < maxAttempts - 1) {
+					quality = Math.max(minQuality, quality - 0.15);
+					width = Math.round(width * 0.85);
+					height = Math.round(height * 0.85);
+				}
+			}
+
+			// 清理内存
+			URL.revokeObjectURL(img.src);
+
+			return blob || file;
 		}
 
 		// Post button handler
