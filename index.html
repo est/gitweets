@@ -347,6 +347,11 @@
 		.post-time {
 			font-size: 13px;
 			color: #999;
+			text-decoration: none;
+		}
+
+		.post-time:hover {
+			color: #666;
 		}
 
 		.action-menu-btn {
@@ -777,7 +782,7 @@
 		// Parse URL to get repo info
 		function parseUrl() {
 			// Try to get from path first
-			const m = /^\/(\w+)(?:\/([0-9a-fA-F]{40}))?$/.exec(location.pathname);
+			const m = /^\/(\w+)(?:\/([0-9a-fA-F]{7,40}))?$/.exec(location.pathname);
 			if (m) {
 				// This is a user/commit view, use default repo
 				REPO = 'est/gitweets';
@@ -801,7 +806,7 @@
 				params.until = untilDate.toISOString();
 			}
 
-			const m = /^\/(\w+)(?:\/([0-9a-fA-F]{40}))?$/.exec(location.pathname);
+			const m = /^\/(\w+)(?:\/([0-9a-fA-F]{7,40}))?$/.exec(location.pathname);
 			if (m && m[2]) {
 				// Single commit view
 				const data = await (await fetch(`${API_BASE}/commits/${m[2]}`)).json();
@@ -1043,7 +1048,7 @@
 					<div class="post-content">${sh(message)}</div>
 					${locationHtml}
 					<div class="post-actions">
-						<div class="post-time">${timeAgo(date)}</div>
+						<a href="/${encodeURI(authorSlug)}/${item.sha.slice(0,7)}" class="post-time" title="${new Intl.DateTimeFormat('zh-CN', {dateStyle: 'long', timeStyle: 'medium'}).format(date)}">${timeAgo(date)}</a>
 						<button class="action-menu-btn" onclick="toggleMenu(this)">
 							<svg viewBox="0 0 24 24">
 								<circle cx="12" cy="6" r="2"/>
