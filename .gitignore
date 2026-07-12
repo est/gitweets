@@ -1,6 +1,9 @@
 .DS_Store
-
 .mimocode
 demo.html
 docs
 *.bak
+.dev.vars
+test_*.mjs
+*.sublime-*
+.wrangler
