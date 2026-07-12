@@ -1406,7 +1406,7 @@
 		// Render a single comment item
 		function renderCommentItem(c) {
 			const nameHtml = c.link
-				? `<a class="comment-author" href="${sh(c.link)}" target="_blank" rel="noopener">${sh(c.name)}</a>`
+				? `<a class="comment-author" href="${sh(c.link)}" target="_blank" rel="noopener nofollow ugc">${sh(c.name)}</a>`
 				: `<span class="comment-author">${sh(c.name)}</span>`;
 			return `
 				<div class="comment-item">
@@ -1465,7 +1465,11 @@
 		});
 
 		// Modal functionality
-		const OAUTH_URL = "https://github.com/login/oauth/authorize?scope=public_repo&client_id=Ov23lirVyDKVPnHhDOFw";
+		function getOAuthUrl() {
+			const state = crypto.randomUUID();
+			document.cookie = `oauth_state=${state}; Path=/; Secure; SameSite=Strict; Max-Age=600`;
+			return `https://github.com/login/oauth/authorize?scope=public_repo&client_id=Ov23lirVyDKVPnHhDOFw&state=${state}`;
+		}
 
 		function getCookie(cookie_str, name) {
 			return decodeURIComponent(cookie_str || '')
@@ -1762,7 +1766,7 @@ The default and minimal required scope is public_repo
 			const access_token = getCookie(document.cookie, 'access_token');
 
 			if (!access_token) {
-				location.href = OAUTH_URL;
+				location.href = getOAuthUrl();
 				return;
 			}
 
