@@ -272,6 +272,24 @@
 			white-space: pre-wrap;
 		}
 
+		.post-content details {
+			cursor: pointer;
+		}
+
+		.post-content summary {
+			display: inline;
+			color: #174b73;
+		}
+
+		.post-content summary::after {
+			content: ' ▼';
+			font-size: 12px;
+		}
+
+		.post-content details[open] summary::after {
+			content: ' ▲';
+		}
+
 		.post-location {
 			display: inline-flex;
 			align-items: center;
@@ -857,6 +875,15 @@
 		const sh = s => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
 		const linkify = s => s.replace(/(https?:\/\/[^\s<>"']+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>')
 
+		// 长文折叠：>250 字节在最近换行处截断
+		const foldPost = (s, limit = 250) => {
+			if (new TextEncoder().encode(s).length <= limit) return linkify(sh(s));
+			const cut = s.lastIndexOf('\n', limit);
+			const head = s.slice(0, cut > 0 ? cut : limit);
+			const tail = s.slice(cut > 0 ? cut + 1 : limit);
+			return `<details><summary>${linkify(sh(head))}</summary>${linkify(sh(tail))}</details>`;
+		}
+
 		// show date
 		const sd = d => new Date(d.getTime() - d.getTimezoneOffset()*60_000).toISOString().replace('T', ' ').split('.')[0]
 
@@ -1267,7 +1294,7 @@
 							</div>
 						</div>
 					</div>
-					<div class="post-content">${linkify(sh(message))}</div>
+					<div class="post-content">${foldPost(message)}</div>
 					${locationHtml}
 					<div class="post-actions">
 						<a href="/${encodeURI(authorSlug)}/${item.sha.slice(0,7)}" class="post-time" title="${new Intl.DateTimeFormat('zh-CN', {dateStyle: 'long', timeStyle: 'medium'}).format(date)}">${timeAgo(date)}</a>
