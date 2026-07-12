@@ -1,3 +1,4 @@
 {"type":"comment","name":"测试用户A","text":"这是一条测试评论","id":"c_c66b197e6e51","ts":1783843381}
 {"type":"comment","name":"est","text":"测试评论2","id":"c_d40f93961217","ts":1783844847}
 {"type":"comment","name":"est","text":"测试评论3","id":"c_3494c6390643","ts":1783848218}
+{"type":"delete_comment","target":"c_3494c6390643"}
