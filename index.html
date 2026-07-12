@@ -272,22 +272,22 @@
 			white-space: pre-wrap;
 		}
 
-		.post-content details {
+		.post-fold {
+			display: inline;
+		}
+
+		.post-fold summary {
+			display: inline;
+			color: #174b73;
 			cursor: pointer;
 		}
 
-		.post-content summary {
-			display: inline;
-			color: #174b73;
+		.post-fold summary::marker {
+			content: '';
 		}
 
-		.post-content summary::after {
-			content: ' ▼';
-			font-size: 12px;
-		}
-
-		.post-content details[open] summary::after {
-			content: ' ▲';
+		.post-fold[open] summary {
+			display: none;
 		}
 
 		.post-location {
@@ -881,7 +881,7 @@
 			const cut = s.lastIndexOf('\n', limit);
 			const head = s.slice(0, cut > 0 ? cut : limit);
 			const tail = s.slice(cut > 0 ? cut + 1 : limit);
-			return `<details><summary>${linkify(sh(head))}</summary>${linkify(sh(tail))}</details>`;
+			return `${linkify(sh(head))} <details class="post-fold"><summary>...</summary>${linkify(sh(tail))}</details>`;
 		}
 
 		// show date
