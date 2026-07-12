@@ -1,6 +1,6 @@
 // 评论功能
-// GET  /:new_cmt?repo=owner/name&shas=abc,def,... → 批量读取评论
-// POST /:new_cmt?id=xxx                          → 添加评论（NDJSON 写入 git notes）
+// GET  /:cmts?repo=owner/name&shas=abc,def,... → 批量读取评论
+// POST /:cmts?id=xxx                          → 添加评论（NDJSON 写入 git notes）
 
 const NOTES_QUERY = `
 query($owner: String!, $repo: String!) {
@@ -53,6 +53,7 @@ function parseAllNotes(data) {
 
 async function fetchNotesFromGitHub(repoPath, token) {
   const [owner, repo] = repoPath.split('/');
+  console.log(`GraphQL fetch: repo=${repoPath}, token=${token ? token.slice(0, 8) + '...' : 'MISSING'}`);
   const resp = await fetch('https://api.github.com/graphql', {
     method: 'POST',
     headers: {
@@ -63,7 +64,11 @@ async function fetchNotesFromGitHub(repoPath, token) {
     body: JSON.stringify({ query: NOTES_QUERY, variables: { owner, repo } }),
     signal: AbortSignal.timeout(10000),
   });
-  if (!resp.ok) throw new Error(`GraphQL ${resp.status}`);
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => '');
+    console.error(`GraphQL ${resp.status}: ${body.slice(0, 300)}`);
+    throw new Error(`GraphQL ${resp.status}: ${body.slice(0, 200)}`);
+  }
   return resp.json();
 }
 
@@ -101,7 +106,7 @@ async function handler(request, env) {
       } catch {}
 
       if (!allNotes) {
-        allNotes = parseAllNotes(await fetchNotesFromGitHub(repo, env.REPO_TOKEN));
+        allNotes = parseAllNotes(await fetchNotesFromGitHub(repo, env.GITHUB_TOKEN));
         const resp = new Response(JSON.stringify(allNotes), {
           headers: { 'Content-Type': 'application/json' },
         });
@@ -149,7 +154,7 @@ async function handler(request, env) {
 
       // 读取当前 notes
       let ghData, allNotes;
-      try { ghData = await fetchNotesFromGitHub(repo, env.REPO_TOKEN); allNotes = parseAllNotes(ghData); }
+      try { ghData = await fetchNotesFromGitHub(repo, env.GITHUB_TOKEN); allNotes = parseAllNotes(ghData); }
       catch (e) { return Response.json({ error: 'Failed to read notes', detail: e.message }, { status: 502 }); }
 
       const notesCommitSha = allNotes._commitSha;
@@ -163,7 +168,7 @@ async function handler(request, env) {
 
       const [owner, repoName] = repo.split('/');
       const API = `https://api.github.com/repos/${owner}/${repoName}`;
-      const auth = { 'Authorization': `Bearer ${env.REPO_TOKEN}`, 'User-Agent': 'gitweets/1.0' };
+      const auth = { 'Authorization': `Bearer ${env.GITHUB_TOKEN}`, 'User-Agent': 'gitweets/1.0' };
 
       // 1. 创建 blob
       const blobR = await fetch(`${API}/git/blobs`, {
@@ -216,7 +221,7 @@ async function handler(request, env) {
 
     return Response.json({ error: 'Method not allowed' }, { status: 405 });
   } catch (e) {
-    console.error('new_cmt error:', e);
+    console.error('cmts error:', e.message, e.stack?.split('\n').slice(0, 3).join(' '));
     return Response.json({ error: 'Internal error', detail: e.message }, { status: 500 });
   }
 }

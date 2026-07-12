@@ -1113,7 +1113,7 @@
 
 			// 1. 先试 CF Worker
 			try {
-				const resp = await fetch(`/.new_cmt?repo=${encodeURIComponent(REPO)}&shas=${commitShas.join(',')}`);
+				const resp = await fetch(`/.cmts?repo=${encodeURIComponent(REPO)}&shas=${commitShas.join(',')}`);
 				if (resp.ok) {
 					const data = await resp.json();
 					for (const [sha, d] of Object.entries(data)) {
@@ -1403,7 +1403,7 @@
 			input.placeholder = '发送中...';
 
 			try {
-				const resp = await fetch(`/.new_cmt?id=${sha}`, {
+				const resp = await fetch(`/.cmts?id=${sha}`, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ text }),
