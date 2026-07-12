@@ -856,6 +856,7 @@
 	<script>
 		// safe html
 		const sh = s => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+		const linkify = s => s.replace(/(https?:\/\/[^\s<>"']+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>')
 
 		// show date
 		const sd = d => new Date(d.getTime() - d.getTimezoneOffset()*60_000).toISOString().replace('T', ' ').split('.')[0]
@@ -1267,7 +1268,7 @@
 							</div>
 						</div>
 					</div>
-					<div class="post-content">${sh(message)}</div>
+					<div class="post-content">${linkify(sh(message))}</div>
 					${locationHtml}
 					<div class="post-actions">
 						<a href="/${encodeURI(authorSlug)}/${item.sha.slice(0,7)}" class="post-time" title="${new Intl.DateTimeFormat('zh-CN', {dateStyle: 'long', timeStyle: 'medium'}).format(date)}">${timeAgo(date)}</a>
@@ -1706,39 +1707,23 @@ The default and minimal required scope is public_repo
 			const maxAttempts = 3;
 
 			for (let attempt = 0; attempt < maxAttempts; attempt++) {
+				// 缩放到目标尺寸
+				const canvas = document.createElement('canvas');
+				canvas.width = width;
+				canvas.height = height;
 				if (usePica && p) {
-					// 使用 pica 缩放（pica 8.0 API: resize(from, to, options)）
-					const targetCanvas = document.createElement('canvas');
-					targetCanvas.width = width;
-					targetCanvas.height = height;
-
-					await p.resize(img, targetCanvas, {
-						quality: 3,        // Lanczos 3-lobe
-						alpha: true,       // 保持透明度
-						unsharpAmount: 80, // 锐化
-						unsharpRadius: 0.6,
-						unsharpThreshold: 2
-					});
-
-					blob = await new Promise((resolve) => {
-						targetCanvas.toBlob((blob) => {
-							resolve(blob);
-						}, 'image/avif', quality);
+					await p.resize(img, canvas, {
+						quality: 3, alpha: true,
+						unsharpAmount: 80, unsharpRadius: 0.6, unsharpThreshold: 2
 					});
 				} else {
-					// fallback 到原生 Canvas
-					const canvas = document.createElement('canvas');
-					const ctx = canvas.getContext('2d');
-					canvas.width = width;
-					canvas.height = height;
-					ctx.clearRect(0, 0, width, height);
-					ctx.drawImage(img, 0, 0, width, height);
+					canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+				}
 
-					blob = await new Promise((resolve) => {
-						canvas.toBlob((blob) => {
-							resolve(blob);
-						}, 'image/avif', quality);
-					});
+				// 按优先级尝试格式：avif → webp → jpeg
+				for (const type of ['image/avif', 'image/webp', 'image/jpeg']) {
+					blob = await new Promise(resolve => canvas.toBlob(resolve, type, quality));
+					if (blob) break;
 				}
 
 				// 检查是否接近目标大小
@@ -1789,7 +1774,13 @@ The default and minimal required scope is public_repo
 					for (let i = 0; i < selectedImages.length; i++) {
 						btnPost.innerText = `压缩图片 ${i+1}/${selectedImages.length}...`;
 						const compressed = await compressImage(selectedImages[i].file);
-						formData.append('images', compressed, selectedImages[i].filename);
+						// 更新扩展名以匹配实际格式
+						let fname = selectedImages[i].filename;
+						if (compressed.type && compressed.type !== selectedImages[i].file.type) {
+							const ext = compressed.type.split('/')[1];
+							fname = fname.replace(/\.[^.]+$/, '.' + ext);
+						}
+						formData.append('images', compressed, fname);
 					}
 				}
 
