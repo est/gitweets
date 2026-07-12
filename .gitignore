@@ -1,9 +1,10 @@
 .DS_Store
-
 .mimocode
 demo.html
 docs
 *.bak
-*.sublime-project
-*.sublime-workspace
+.dev.vars
+test_*.mjs
+*.sublime-*
+.wrangler
 workers-sdk

@@ -438,34 +438,12 @@
 			background-color: rgba(255, 255, 255, 0.1);
 		}
 
-		/* 点赞和评论区 */
+		/* 评论区 */
 		.like-comment-section {
 			margin-top: 10px;
 			background-color: #f5f5f5;
 			border-radius: 4px;
 			overflow: hidden;
-		}
-
-		.likes-section {
-			padding: 8px 12px;
-			display: flex;
-			align-items: center;
-			gap: 6px;
-			font-size: 14px;
-			color: #174b73;
-			border-bottom: 1px solid #e5e5e5;
-		}
-
-		.likes-section svg {
-			width: 18px;
-			height: 18px;
-			fill: #174b73;
-			flex-shrink: 0;
-		}
-
-		.likes-names {
-			flex: 1;
-			word-break: break-word;
 		}
 
 		.comments-section {
@@ -491,6 +469,76 @@
 
 		.comment-text {
 			color: #191919;
+		}
+
+		.comment-time {
+			color: #999;
+			font-size: 12px;
+			margin-left: 6px;
+		}
+
+		.comment-form {
+			border-top: 1px solid #e5e5e5;
+			padding: 8px 12px;
+		}
+
+		.comment-form-row {
+			display: flex;
+			gap: 6px;
+			margin-bottom: 6px;
+		}
+
+		.comment-form-row:last-child {
+			margin-bottom: 0;
+		}
+
+		.comment-name,
+		.comment-link,
+		.comment-email,
+		.comment-textarea {
+			flex: 1;
+			border: 1px solid #ddd;
+			border-radius: 4px;
+			padding: 6px 8px;
+			font-size: 13px;
+			outline: none;
+			font-family: inherit;
+			resize: none;
+		}
+
+		.comment-name:focus,
+		.comment-link:focus,
+		.comment-email:focus,
+		.comment-textarea:focus {
+			border-color: #174b73;
+		}
+
+		.comment-textarea {
+			min-height: 40px;
+		}
+
+		.comment-form-actions {
+			justify-content: flex-end;
+		}
+
+		.comment-submit {
+			background: #174b73;
+			color: white;
+			border: none;
+			border-radius: 4px;
+			padding: 6px 14px;
+			font-size: 14px;
+			cursor: pointer;
+			white-space: nowrap;
+		}
+
+		.comment-submit:active {
+			background: #0d3552;
+		}
+
+		.comment-submit:disabled {
+			opacity: 0.6;
+			cursor: not-allowed;
 		}
 
 		/* 图片预览 */
@@ -537,17 +585,6 @@
 
 		@keyframes spin {
 			to { transform: rotate(360deg); }
-		}
-
-		/* 点赞动画 */
-		@keyframes likeAnimation {
-			0% { transform: scale(1); }
-			50% { transform: scale(1.3); }
-			100% { transform: scale(1); }
-		}
-
-		.like-animate {
-			animation: likeAnimation 0.3s ease;
 		}
 
 		/* 遮罩层 */
@@ -1036,7 +1073,7 @@
 				}
 			});
 
-			// Then load images for posts that need them
+			// Load images for posts that need them
 			mediaIds.forEach(async function(id) {
 				try {
 					const resp = await fetch(`${API_BASE}/commits/${id}`);
@@ -1046,6 +1083,95 @@
 					console.error('Failed to load images for commit', id, e);
 				}
 			});
+
+			// Load interactions (comments) for all commits
+			const shas = commits.map(c => c.sha);
+			loadInteractions(shas);
+		}
+
+		// Format unix timestamp
+		function formatTime(ts) {
+			if (!ts) return '';
+			const d = new Date(ts * 1000);
+			const now = new Date();
+			const diff = now - d;
+			if (diff < 60000) return '刚刚';
+			if (diff < 3600000) return Math.floor(diff / 60000) + '分钟前';
+			if (diff < 86400000) return Math.floor(diff / 3600000) + '小时前';
+			if (diff < 604800000) return Math.floor(diff / 86400000) + '天前';
+			return `${d.getMonth() + 1}月${d.getDate()}日`;
+		}
+
+		// 解析 NDJSON → { comments: [...] }
+		function parseNote(ndjson) {
+			const comments = [];
+			if (!ndjson) return { comments };
+			for (const line of ndjson.split('\n')) {
+				if (!line.trim()) continue;
+				try {
+					const e = JSON.parse(line);
+					if (e.type === 'comment') comments.push(e);
+					else if (e.type === 'delete_comment') {
+						const idx = comments.findIndex(c => c.id === e.target);
+						if (idx >= 0) comments.splice(idx, 1);
+					}
+				} catch {}
+			}
+			return { comments };
+		}
+
+		// GraphQL fallback 查询
+		const NOTES_GQL = 'query($o:String!,$r:String!){repository(owner:$o,name:$r){ref(qualifiedName:"refs/notes/commits"){target{...on Commit{tree{entries{name object{...on Blob{text}}}}}}}}}';
+
+		// 批量加载评论
+		async function loadInteractions(commitShas) {
+			if (!commitShas.length) return;
+
+			// 1. 先试 CF Worker
+			try {
+				const resp = await fetch(`/.cmts?repo=${encodeURIComponent(REPO)}&shas=${commitShas.join(',')}`);
+				if (resp.ok) {
+					const data = await resp.json();
+					for (const [sha, d] of Object.entries(data)) {
+						if (d.comments?.length) renderInteractionComments(sha, d.comments);
+					}
+					return;
+				}
+			} catch {}
+
+			// 2. Fallback: 浏览器直连 GraphQL
+			try {
+				const token = getCookie(document.cookie, 'access_token');
+				if (!token) return;
+				const [owner, repo] = REPO.split('/');
+				const resp = await fetch('https://api.github.com/graphql', {
+					method: 'POST',
+					headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+					body: JSON.stringify({ query: NOTES_GQL, variables: { o: owner, r: repo } }),
+				});
+				if (!resp.ok) return;
+				const entries = (await resp.json())?.data?.repository?.ref?.target?.tree?.entries;
+				if (!entries) return;
+				for (const sha of commitShas) {
+					const entry = entries.find(e => e.name === sha);
+					if (!entry?.object?.text) continue;
+					const { comments } = parseNote(entry.object.text);
+					if (comments.length) renderInteractionComments(sha, comments);
+				}
+			} catch (e) {
+				console.error('Failed to load interactions:', e);
+			}
+		}
+
+		// 渲染评论列表
+		function renderInteractionComments(sha, comments) {
+			const postEl = document.getElementById(`post-${sha}`);
+			if (!postEl) return;
+			const section = postEl.querySelector('.like-comment-section');
+			const commentsSection = section.querySelector('.comments-section');
+			commentsSection.innerHTML = comments.map(c => renderCommentItem(c)).join('');
+			commentsSection.style.display = 'block';
+			section.style.display = 'block';
 		}
 
 		// Append images to a post
@@ -1119,19 +1245,15 @@
 			// Location stub (for future use)
 			const locationHtml = ''; // placeholder for future
 
-			// Like/comment section (UI only)
-			const likeCommentHtml = `
+			// 评论区
+			const commentHtml = `
 				<div class="like-comment-section">
-					<div class="likes-section" style="display:none;">
-						<svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-						<div class="likes-names"></div>
-					</div>
 					<div class="comments-section" style="display:none;"></div>
 				</div>
 			`;
 
 			return `
-				<div class="post-item" id="post-${item.sha}">
+				<div class="post-item" id="post-${item.sha}" data-sha="${item.sha}">
 					<div class="post-header">
 						<div class="post-avatar">
 							<a href="/">
@@ -1156,18 +1278,14 @@
 								<circle cx="12" cy="18" r="2"/>
 							</svg>
 							<div class="action-popup">
-								<div class="popup-item" onclick="handleLike(event, this)">
-									<svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-									<span>赞</span>
-								</div>
-								<div class="popup-item" onclick="handleComment(event)">
+								<div class="popup-item" onclick="handleComment(event, '${item.sha}')">
 									<svg viewBox="0 0 24 24"><path d="M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4 6V3c0-.55-.45-1-1-1H3c-.55 0-1 .45-1 1v14l4-4h10c.55 0 1-.45 1-1z"/></svg>
 									<span>评论</span>
 								</div>
 							</div>
 						</button>
 					</div>
-					${likeCommentHtml}
+					${commentHtml}
 				</div>
 			`;
 		}
@@ -1187,34 +1305,117 @@
 			}
 		};
 
-		// Handle like (UI only)
-		window.handleLike = function(event, item) {
-			event.stopPropagation();
-			const svg = item.querySelector('svg');
-			svg.style.fill = '#F73757';
-			item.classList.add('like-animate');
-
-			setTimeout(() => {
-				item.classList.remove('like-animate');
-			}, 300);
-
-			// Close menu
-			document.querySelectorAll('.action-popup').forEach(p => p.classList.remove('show'));
-			overlay.classList.remove('show');
-
-			// Show hint
-			alert('功能开发中~');
-		};
-
-		// Handle comment (UI only)
-		window.handleComment = function(event) {
+		// Handle comment
+		window.handleComment = function(event, sha) {
 			event.stopPropagation();
 			// Close menu
 			document.querySelectorAll('.action-popup').forEach(p => p.classList.remove('show'));
 			overlay.classList.remove('show');
 
-			alert('功能开发中~');
+			const postEl = document.getElementById(`post-${sha}`);
+			if (!postEl) return;
+			const section = postEl.querySelector('.like-comment-section');
+			const commentsSection = section.querySelector('.comments-section');
+			section.style.display = 'block';
+			commentsSection.style.display = 'block';
+
+			// 如果已有表单则聚焦
+			if (commentsSection.querySelector('.comment-form')) {
+				commentsSection.querySelector('.comment-name').focus();
+				return;
+			}
+
+			// 读取本地存储的名字
+			const savedName = localStorage.getItem('cmt_name') || '';
+			const savedLink = localStorage.getItem('cmt_link') || '';
+			const savedEmail = localStorage.getItem('cmt_email') || '';
+
+			const formHtml = `
+				<div class="comment-form">
+					<div class="comment-form-row">
+						<input class="comment-name" placeholder="名字 *" maxlength="50" value="${sh(savedName)}">
+						<input class="comment-link" placeholder="链接 (可选)" maxlength="200" value="${sh(savedLink)}">
+					</div>
+					<div class="comment-form-row">
+						<input class="comment-email" placeholder="邮箱 (可选)" maxlength="100" value="${sh(savedEmail)}">
+					</div>
+					<div class="comment-form-row">
+						<textarea class="comment-textarea" placeholder="写评论..." maxlength="500" rows="2"></textarea>
+					</div>
+					<div class="comment-form-row comment-form-actions">
+						<button class="comment-submit" onclick="submitComment('${sha}')">发送</button>
+					</div>
+				</div>
+			`;
+			commentsSection.insertAdjacentHTML('beforeend', formHtml);
+			commentsSection.querySelector('.comment-name').focus();
 		};
+
+		// Submit comment
+		window.submitComment = async function(sha) {
+			const postEl = document.getElementById(`post-${sha}`);
+			if (!postEl) return;
+			const form = postEl.querySelector('.comment-form');
+			if (!form) return;
+
+			const name = form.querySelector('.comment-name').value.trim();
+			const text = form.querySelector('.comment-textarea').value.trim();
+			const link = form.querySelector('.comment-link').value.trim();
+			const email = form.querySelector('.comment-email').value.trim();
+
+			if (!name) { alert('请填写名字'); form.querySelector('.comment-name').focus(); return; }
+			if (!text) { alert('请填写评论内容'); form.querySelector('.comment-textarea').focus(); return; }
+
+			// 保存到本地
+			localStorage.setItem('cmt_name', name);
+			if (link) localStorage.setItem('cmt_link', link);
+			if (email) localStorage.setItem('cmt_email', email);
+
+			const btn = form.querySelector('.comment-submit');
+			btn.disabled = true;
+			btn.textContent = '发送中...';
+
+			try {
+				const resp = await fetch(`/.cmts?id=${sha}`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ name, text, link, email }),
+				});
+				const data = await resp.json();
+				if (resp.ok && data.success) {
+					// 追加评论到列表
+					const commentsSection = postEl.querySelector('.comments-section');
+					const commentHtml = renderCommentItem(data.comment);
+					form.insertAdjacentHTML('beforebegin', commentHtml);
+					// 清空内容，保留名字等
+					form.querySelector('.comment-textarea').value = '';
+					btn.disabled = false;
+					btn.textContent = '发送';
+				} else {
+					alert(data.error || '评论失败');
+					btn.disabled = false;
+					btn.textContent = '发送';
+				}
+			} catch (e) {
+				alert('网络错误');
+				btn.disabled = false;
+				btn.textContent = '发送';
+			}
+		};
+
+		// Render a single comment item
+		function renderCommentItem(c) {
+			const nameHtml = c.link
+				? `<a class="comment-author" href="${sh(c.link)}" target="_blank" rel="noopener">${sh(c.name)}</a>`
+				: `<span class="comment-author">${sh(c.name)}</span>`;
+			return `
+				<div class="comment-item">
+					${nameHtml}
+					<span class="comment-text">${sh(c.text)}</span>
+					<span class="comment-time">${formatTime(c.ts)}</span>
+				</div>
+			`;
+		}
 
 		// Click overlay to close menu
 		overlay.addEventListener('click', function() {
