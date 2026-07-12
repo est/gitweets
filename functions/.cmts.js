@@ -72,19 +72,7 @@ async function fetchNotesFromGitHub(repoPath, token) {
   return resp.json();
 }
 
-function verifyGitHubToken(token) {
-  return fetch('https://api.github.com/user', {
-    headers: { 'Authorization': `Bearer ${token}`, 'User-Agent': 'gitweets/1.0' },
-    signal: AbortSignal.timeout(5000),
-  }).then(r => r.ok ? r.json() : null).catch(() => null);
-}
 
-function getCookie(cookieStr, name) {
-  return decodeURIComponent(cookieStr || '')
-    .split(';')
-    .find(row => row.trim().startsWith(name + '='))
-    ?.split('=')[1]?.trim() || '';
-}
 
 async function handler(request, env) {
   try {
@@ -125,32 +113,35 @@ async function handler(request, env) {
       return Response.json(result);
     }
 
-    // --- POST: 添加评论 ---
+    // --- POST: 添加评论（匿名，无需登录） ---
     if (request.method === 'POST') {
       const sha = (url.searchParams.get('id') || '').trim();
       if (!sha || !/^[0-9a-f]{7,40}$/i.test(sha)) {
         return Response.json({ error: 'Invalid id' }, { status: 400 });
       }
 
-      const access_token = getCookie(request.headers.get('cookie'), 'access_token');
-      if (!access_token) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+      let body;
+      try { body = await request.json(); } catch { return Response.json({ error: 'Invalid JSON' }, { status: 400 }); }
 
-      const user = await verifyGitHubToken(access_token);
-      if (!user) return Response.json({ error: 'Invalid token' }, { status: 401 });
+      const name = (body.name || '').trim().slice(0, 50);
+      const text = (body.text || '').trim();
+      const link = (body.link || '').trim().slice(0, 200);
+      const email = (body.email || '').trim().slice(0, 100);
 
-      let text;
-      try { text = ((await request.json()).text || '').trim(); } catch { return Response.json({ error: 'Invalid JSON' }, { status: 400 }); }
+      if (!name) return Response.json({ error: '名字不能为空' }, { status: 400 });
       if (!text || text.length > 500) return Response.json({ error: '评论内容为空或超过 500 字符' }, { status: 400 });
 
       const cf = request.cf || {};
       const comment = {
-        type: 'comment', user: user.login, text,
+        type: 'comment', name, text,
         id: `c_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`,
         ts: Math.floor(Date.now() / 1000),
         ua: (request.headers.get('user-agent') || '').slice(0, 100),
         ip: request.headers.get('CF-Connecting-IP') || '',
         cf: { asn: cf.asn, country: cf.country, region: cf.region, city: cf.city, timezone: cf.timezone },
       };
+      if (link) comment.link = link;
+      if (email) comment.email = email;
 
       // 读取当前 notes
       let ghData, allNotes;
@@ -199,7 +190,7 @@ async function handler(request, env) {
       // 4. 创建 commit
       const newCommitR = await fetch(`${API}/git/commits`, {
         method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: `comment by ${user.login}`, tree: newTreeSha, parents: [notesCommitSha] }),
+        body: JSON.stringify({ message: `comment by ${name}`, tree: newTreeSha, parents: [notesCommitSha] }),
         signal: AbortSignal.timeout(10000),
       });
       if (!newCommitR.ok) return Response.json({ error: 'Failed to create commit', detail: await newCommitR.text() }, { status: 502 });

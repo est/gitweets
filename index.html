@@ -499,25 +499,48 @@
 			margin-left: 6px;
 		}
 
-		.comment-input-wrap {
-			display: flex;
-			gap: 8px;
-			padding: 8px 12px;
+		.comment-form {
 			border-top: 1px solid #e5e5e5;
+			padding: 8px 12px;
 		}
 
-		.comment-input {
+		.comment-form-row {
+			display: flex;
+			gap: 6px;
+			margin-bottom: 6px;
+		}
+
+		.comment-form-row:last-child {
+			margin-bottom: 0;
+		}
+
+		.comment-name,
+		.comment-link,
+		.comment-email,
+		.comment-textarea {
 			flex: 1;
 			border: 1px solid #ddd;
 			border-radius: 4px;
-			padding: 6px 10px;
-			font-size: 14px;
+			padding: 6px 8px;
+			font-size: 13px;
 			outline: none;
 			font-family: inherit;
+			resize: none;
 		}
 
-		.comment-input:focus {
+		.comment-name:focus,
+		.comment-link:focus,
+		.comment-email:focus,
+		.comment-textarea:focus {
 			border-color: #174b73;
+		}
+
+		.comment-textarea {
+			min-height: 40px;
+		}
+
+		.comment-form-actions {
+			justify-content: flex-end;
 		}
 
 		.comment-submit {
@@ -533,6 +556,11 @@
 
 		.comment-submit:active {
 			background: #0d3552;
+		}
+
+		.comment-submit:disabled {
+			opacity: 0.6;
+			cursor: not-allowed;
 		}
 
 		/* 图片预览 */
@@ -1364,77 +1392,98 @@
 			section.style.display = 'block';
 			commentsSection.style.display = 'block';
 
-			// 如果已有输入框则聚焦
-			const existingInput = commentsSection.querySelector('.comment-input');
-			if (existingInput) { existingInput.focus(); return; }
+			// 如果已有表单则聚焦
+			if (commentsSection.querySelector('.comment-form')) {
+				commentsSection.querySelector('.comment-name').focus();
+				return;
+			}
 
-			// 添加输入框
-			const inputHtml = `
-				<div class="comment-input-wrap">
-					<input class="comment-input" placeholder="写评论..." onkeypress="handleCommentKey(event, '${sha}')">
-					<button class="comment-submit" onclick="submitComment('${sha}')">发送</button>
+			// 读取本地存储的名字
+			const savedName = localStorage.getItem('cmt_name') || '';
+			const savedLink = localStorage.getItem('cmt_link') || '';
+			const savedEmail = localStorage.getItem('cmt_email') || '';
+
+			const formHtml = `
+				<div class="comment-form">
+					<div class="comment-form-row">
+						<input class="comment-name" placeholder="名字 *" maxlength="50" value="${sh(savedName)}">
+						<input class="comment-link" placeholder="链接 (可选)" maxlength="200" value="${sh(savedLink)}">
+					</div>
+					<div class="comment-form-row">
+						<input class="comment-email" placeholder="邮箱 (可选)" maxlength="100" value="${sh(savedEmail)}">
+					</div>
+					<div class="comment-form-row">
+						<textarea class="comment-textarea" placeholder="写评论..." maxlength="500" rows="2"></textarea>
+					</div>
+					<div class="comment-form-row comment-form-actions">
+						<button class="comment-submit" onclick="submitComment('${sha}')">发送</button>
+					</div>
 				</div>
 			`;
-			commentsSection.insertAdjacentHTML('beforeend', inputHtml);
-			commentsSection.querySelector('.comment-input').focus();
-		};
-
-		// Submit comment on Enter
-		window.handleCommentKey = function(event, sha) {
-			if (event.key === 'Enter') submitComment(sha);
+			commentsSection.insertAdjacentHTML('beforeend', formHtml);
+			commentsSection.querySelector('.comment-name').focus();
 		};
 
 		// Submit comment
 		window.submitComment = async function(sha) {
 			const postEl = document.getElementById(`post-${sha}`);
 			if (!postEl) return;
-			const input = postEl.querySelector('.comment-input');
-			if (!input) return;
-			const text = input.value.trim();
-			if (!text) return;
+			const form = postEl.querySelector('.comment-form');
+			if (!form) return;
 
-			// 检查登录状态
-			if (!getCookie(document.cookie, 'access_token')) {
-				alert('请先登录');
-				return;
-			}
+			const name = form.querySelector('.comment-name').value.trim();
+			const text = form.querySelector('.comment-textarea').value.trim();
+			const link = form.querySelector('.comment-link').value.trim();
+			const email = form.querySelector('.comment-email').value.trim();
 
-			input.disabled = true;
-			input.placeholder = '发送中...';
+			if (!name) { alert('请填写名字'); form.querySelector('.comment-name').focus(); return; }
+			if (!text) { alert('请填写评论内容'); form.querySelector('.comment-textarea').focus(); return; }
+
+			// 保存到本地
+			localStorage.setItem('cmt_name', name);
+			if (link) localStorage.setItem('cmt_link', link);
+			if (email) localStorage.setItem('cmt_email', email);
+
+			const btn = form.querySelector('.comment-submit');
+			btn.disabled = true;
+			btn.textContent = '发送中...';
 
 			try {
 				const resp = await fetch(`/.cmts?id=${sha}`, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ text }),
+					body: JSON.stringify({ name, text, link, email }),
 				});
 				const data = await resp.json();
 				if (resp.ok && data.success) {
-					input.value = '';
-					input.placeholder = '写评论...';
-					input.disabled = false;
 					// 追加评论到列表
 					const commentsSection = postEl.querySelector('.comments-section');
-					const inputWrap = commentsSection.querySelector('.comment-input-wrap');
 					const commentHtml = renderCommentItem(data.comment);
-					inputWrap.insertAdjacentHTML('beforebegin', commentHtml);
+					form.insertAdjacentHTML('beforebegin', commentHtml);
+					// 清空内容，保留名字等
+					form.querySelector('.comment-textarea').value = '';
+					btn.disabled = false;
+					btn.textContent = '发送';
 				} else {
 					alert(data.error || '评论失败');
-					input.disabled = false;
-					input.placeholder = '写评论...';
+					btn.disabled = false;
+					btn.textContent = '发送';
 				}
 			} catch (e) {
 				alert('网络错误');
-				input.disabled = false;
-				input.placeholder = '写评论...';
+				btn.disabled = false;
+				btn.textContent = '发送';
 			}
 		};
 
 		// Render a single comment item
 		function renderCommentItem(c) {
+			const nameHtml = c.link
+				? `<a class="comment-author" href="${sh(c.link)}" target="_blank" rel="noopener">${sh(c.name)}</a>`
+				: `<span class="comment-author">${sh(c.name)}</span>`;
 			return `
 				<div class="comment-item">
-					<span class="comment-author">${sh(c.user)}</span>
+					${nameHtml}
 					<span class="comment-text">${sh(c.text)}</span>
 					<span class="comment-time">${formatTime(c.ts)}</span>
 				</div>
