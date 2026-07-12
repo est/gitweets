@@ -493,6 +493,48 @@
 			color: #191919;
 		}
 
+		.comment-time {
+			color: #999;
+			font-size: 12px;
+			margin-left: 6px;
+		}
+
+		.comment-input-wrap {
+			display: flex;
+			gap: 8px;
+			padding: 8px 12px;
+			border-top: 1px solid #e5e5e5;
+		}
+
+		.comment-input {
+			flex: 1;
+			border: 1px solid #ddd;
+			border-radius: 4px;
+			padding: 6px 10px;
+			font-size: 14px;
+			outline: none;
+			font-family: inherit;
+		}
+
+		.comment-input:focus {
+			border-color: #174b73;
+		}
+
+		.comment-submit {
+			background: #174b73;
+			color: white;
+			border: none;
+			border-radius: 4px;
+			padding: 6px 14px;
+			font-size: 14px;
+			cursor: pointer;
+			white-space: nowrap;
+		}
+
+		.comment-submit:active {
+			background: #0d3552;
+		}
+
 		/* 图片预览 */
 		.image-preview-overlay {
 			position: fixed;
@@ -1036,7 +1078,7 @@
 				}
 			});
 
-			// Then load images for posts that need them
+			// Load images for posts that need them
 			mediaIds.forEach(async function(id) {
 				try {
 					const resp = await fetch(`${API_BASE}/commits/${id}`);
@@ -1046,6 +1088,108 @@
 					console.error('Failed to load images for commit', id, e);
 				}
 			});
+
+			// Load interactions (comments) for all commits
+			const shas = commits.map(c => c.sha);
+			loadInteractions(shas);
+		}
+
+		// Format unix timestamp
+		function formatTime(ts) {
+			if (!ts) return '';
+			const d = new Date(ts * 1000);
+			const now = new Date();
+			const diff = now - d;
+			if (diff < 60000) return '刚刚';
+			if (diff < 3600000) return Math.floor(diff / 60000) + '分钟前';
+			if (diff < 86400000) return Math.floor(diff / 3600000) + '小时前';
+			if (diff < 604800000) return Math.floor(diff / 86400000) + '天前';
+			return `${d.getMonth() + 1}月${d.getDate()}日`;
+		}
+
+		// Batch load interactions for a page of commits
+		async function loadInteractions(commitShas) {
+			if (!commitShas.length) return;
+
+			// 1. 先试 CF Worker
+			try {
+				const resp = await fetch(`/.new_cmt?repo=${encodeURIComponent(REPO)}&shas=${commitShas.join(',')}`);
+				if (resp.ok) {
+					const data = await resp.json();
+					for (const [sha, d] of Object.entries(data)) {
+						if (d.comments?.length) renderInteractionComments(sha, d.comments);
+					}
+					return;
+				}
+			} catch {}
+
+			// 2. Fallback: 浏览器直连 GraphQL
+			try {
+				const data = await loadInteractionsFallback();
+				if (!data) return;
+				for (const sha of commitShas) {
+					if (data[sha]?.comments?.length) renderInteractionComments(sha, data[sha].comments);
+				}
+			} catch (e) {
+				console.error('Failed to load interactions:', e);
+			}
+		}
+
+		// GraphQL fallback: fetch all notes from browser
+		async function loadInteractionsFallback() {
+			const token = getCookie(document.cookie, 'access_token');
+			if (!token) return null;
+
+			const [owner, repo] = REPO.split('/');
+			const query = `query($owner:String!,$repo:String!){repository(owner:$owner,name:$repo){ref(qualifiedName:"refs/notes/commits"){target{...on Commit{tree{entries{name object{...on Blob{text}}}}}}}}}`;
+
+			const resp = await fetch('https://api.github.com/graphql', {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${token}`,
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ query, variables: { owner, repo } }),
+			});
+			if (!resp.ok) return null;
+			const ghData = await resp.json();
+
+			const entries = ghData?.data?.repository?.ref?.target?.tree?.entries;
+			if (!entries) return null;
+
+			const result = {};
+			for (const entry of entries) {
+				const content = entry.object?.text;
+				if (!content) continue;
+				const comments = [];
+				for (const line of content.split('\n')) {
+					if (!line.trim()) continue;
+					try {
+						const e = JSON.parse(line);
+						if (e.type === 'comment') comments.push(e);
+						else if (e.type === 'delete_comment') {
+							const idx = comments.findIndex(c => c.id === e.target);
+							if (idx >= 0) comments.splice(idx, 1);
+						}
+					} catch {}
+				}
+				if (comments.length) result[entry.name] = { comments };
+			}
+			return result;
+		}
+
+		// Render comments for a post
+		function renderInteractionComments(sha, comments) {
+			const postEl = document.getElementById(`post-${sha}`);
+			if (!postEl) return;
+			const section = postEl.querySelector('.like-comment-section');
+			const commentsSection = section.querySelector('.comments-section');
+
+			// 渲染评论列表（不含输入框，输入框由 handleComment 添加）
+			const commentsHtml = comments.map(c => renderCommentItem(c)).join('');
+			commentsSection.innerHTML = commentsHtml;
+			commentsSection.style.display = 'block';
+			section.style.display = 'block';
 		}
 
 		// Append images to a post
@@ -1131,7 +1275,7 @@
 			`;
 
 			return `
-				<div class="post-item" id="post-${item.sha}">
+				<div class="post-item" id="post-${item.sha}" data-sha="${item.sha}">
 					<div class="post-header">
 						<div class="post-avatar">
 							<a href="/">
@@ -1160,7 +1304,7 @@
 									<svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
 									<span>赞</span>
 								</div>
-								<div class="popup-item" onclick="handleComment(event)">
+								<div class="popup-item" onclick="handleComment(event, '${item.sha}')">
 									<svg viewBox="0 0 24 24"><path d="M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4 6V3c0-.55-.45-1-1-1H3c-.55 0-1 .45-1 1v14l4-4h10c.55 0 1-.45 1-1z"/></svg>
 									<span>评论</span>
 								</div>
@@ -1206,15 +1350,96 @@
 			alert('功能开发中~');
 		};
 
-		// Handle comment (UI only)
-		window.handleComment = function(event) {
+		// Handle comment
+		window.handleComment = function(event, sha) {
 			event.stopPropagation();
 			// Close menu
 			document.querySelectorAll('.action-popup').forEach(p => p.classList.remove('show'));
 			overlay.classList.remove('show');
 
-			alert('功能开发中~');
+			const postEl = document.getElementById(`post-${sha}`);
+			if (!postEl) return;
+			const section = postEl.querySelector('.like-comment-section');
+			const commentsSection = section.querySelector('.comments-section');
+			section.style.display = 'block';
+			commentsSection.style.display = 'block';
+
+			// 如果已有输入框则聚焦
+			const existingInput = commentsSection.querySelector('.comment-input');
+			if (existingInput) { existingInput.focus(); return; }
+
+			// 添加输入框
+			const inputHtml = `
+				<div class="comment-input-wrap">
+					<input class="comment-input" placeholder="写评论..." onkeypress="handleCommentKey(event, '${sha}')">
+					<button class="comment-submit" onclick="submitComment('${sha}')">发送</button>
+				</div>
+			`;
+			commentsSection.insertAdjacentHTML('beforeend', inputHtml);
+			commentsSection.querySelector('.comment-input').focus();
 		};
+
+		// Submit comment on Enter
+		window.handleCommentKey = function(event, sha) {
+			if (event.key === 'Enter') submitComment(sha);
+		};
+
+		// Submit comment
+		window.submitComment = async function(sha) {
+			const postEl = document.getElementById(`post-${sha}`);
+			if (!postEl) return;
+			const input = postEl.querySelector('.comment-input');
+			if (!input) return;
+			const text = input.value.trim();
+			if (!text) return;
+
+			// 检查登录状态
+			if (!getCookie(document.cookie, 'access_token')) {
+				alert('请先登录');
+				return;
+			}
+
+			input.disabled = true;
+			input.placeholder = '发送中...';
+
+			try {
+				const resp = await fetch(`/.new_cmt?id=${sha}`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ text }),
+				});
+				const data = await resp.json();
+				if (resp.ok && data.success) {
+					input.value = '';
+					input.placeholder = '写评论...';
+					input.disabled = false;
+					// 追加评论到列表
+					const commentsSection = postEl.querySelector('.comments-section');
+					const inputWrap = commentsSection.querySelector('.comment-input-wrap');
+					const commentHtml = renderCommentItem(data.comment);
+					inputWrap.insertAdjacentHTML('beforebegin', commentHtml);
+				} else {
+					alert(data.error || '评论失败');
+					input.disabled = false;
+					input.placeholder = '写评论...';
+				}
+			} catch (e) {
+				alert('网络错误');
+				input.disabled = false;
+				input.placeholder = '写评论...';
+			}
+		};
+
+		// Render a single comment item
+		function renderCommentItem(c) {
+			return `
+				<div class="comment-item">
+					<span class="comment-author">${sh(c.user)}</span>
+					<span class="comment-text">${sh(c.text)}</span>
+					<span class="comment-time">${formatTime(c.ts)}</span>
+				</div>
+			`;
+		}
 
 		// Click overlay to close menu
 		overlay.addEventListener('click', function() {
