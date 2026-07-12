@@ -84,12 +84,10 @@ comments:
 	@echo "--- 评论 ---"
 	@git notes --ref=commits show $(SHA) 2>/dev/null \
 		| python3 -c "\
-import sys, json;\
-lines = sys.stdin.read().strip().split('\n');\
-comments, deletes = [], set();\
-[l for l in lines if not l.strip()];\
-[None for l in lines if not l.strip() or (lambda e: comments.append(e) if e.get('type')=='comment' else deletes.add(e.get('target')) if e.get('type')=='delete_comment' else None)(json.loads(l)) if l.strip()];\
-[print(f'  [{c[\"id\"]}] {c[\"name\"]}: {c[\"text\"]}') for c in comments if c['id'] not in deletes]" \
+import sys,json;\
+e=[json.loads(x) for x in sys.stdin.read().splitlines() if x.strip()];\
+d={x['target'] for x in e if x.get('type')=='delete_comment'};\
+[print(f'  [{c[\"id\"]}] {c[\"name\"]}: {c[\"text\"]}') for c in e if c.get('type')=='comment' and c['id'] not in d]" \
 		|| echo "  (无评论)"
 
 # 最近 20 条 post
