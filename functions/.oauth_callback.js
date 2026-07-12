@@ -17,13 +17,12 @@ async function handler(request, env) {
     body: new URLSearchParams(payload).toString(),
     signal: AbortSignal.timeout(5000)})
   const res = await r.json()
-  console.debug(code, res)
   if (res.access_token) {
     return new Response('', {
       status: 302,
       headers: {
         'Location': '/',
-        'Set-Cookie': `access_token=${res.access_token}; Path=/; Secure; SameSite=Strict; Max-Age=20000`
+        'Set-Cookie': `access_token=${res.access_token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=20000`
       }
     })
   } else {
