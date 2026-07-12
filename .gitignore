@@ -7,4 +7,3 @@ docs
 test_*.mjs
 *.sublime-*
 .wrangler
-workers-sdk
