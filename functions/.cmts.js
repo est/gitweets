@@ -54,6 +54,7 @@ function parseAllNotes(data) {
 async function fetchNotesFromGitHub(repoPath, token) {
   const [owner, repo] = repoPath.split('/');
   console.log(`GraphQL fetch: repo=${repoPath}, token=${token ? 'set' : 'MISSING'}`);
+  // console.log(`GraphQL fetch: repo=${repoPath}, token=${token ? token.slice(0, 8) + '...' : 'MISSING'}`);
   const resp = await fetch('https://api.github.com/graphql', {
     method: 'POST',
     headers: {
@@ -185,7 +186,7 @@ async function handler(request, env) {
       // 读取当前 notes
       let ghData, allNotes;
       try { ghData = await fetchNotesFromGitHub(repo, env.GITHUB_TOKEN); allNotes = parseAllNotes(ghData); }
-      catch (e) { return Response.json({ error: 'Failed to read notes' }, { status: 502 }); }
+      catch (e) { return Response.json({ error: 'Failed to read notes' /*, detail: e.message */ }, { status: 502 }); }
 
       const notesCommitSha = allNotes._commitSha;
       if (!notesCommitSha) return Response.json({ error: 'No notes commit found' }, { status: 500 });
