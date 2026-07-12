@@ -136,12 +136,16 @@ async function handler(request, env) {
         type: 'comment', name, text,
         id: `c_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`,
         ts: Math.floor(Date.now() / 1000),
+      };
+      if (link) comment.link = link;
+
+      // 敏感信息写到 commit message，不进 NDJSON
+      const meta = {
+        email: email || undefined,
         ua: (request.headers.get('user-agent') || '').slice(0, 100),
         ip: request.headers.get('CF-Connecting-IP') || '',
         cf: { asn: cf.asn, country: cf.country, region: cf.region, city: cf.city, timezone: cf.timezone },
       };
-      if (link) comment.link = link;
-      if (email) comment.email = email;
 
       // 读取当前 notes
       let ghData, allNotes;
@@ -187,10 +191,11 @@ async function handler(request, env) {
       if (!treeR.ok) return Response.json({ error: 'Failed to create tree', detail: await treeR.text() }, { status: 502 });
       const newTreeSha = (await treeR.json()).sha;
 
-      // 4. 创建 commit
+      // 4. 创建 commit（敏感信息在 message 里，不在 blob 里）
+      const commitMsg = `comment by ${name}\n\n${JSON.stringify(meta)}`;
       const newCommitR = await fetch(`${API}/git/commits`, {
         method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: `comment by ${name}`, tree: newTreeSha, parents: [notesCommitSha] }),
+        body: JSON.stringify({ message: commitMsg, tree: newTreeSha, parents: [notesCommitSha] }),
         signal: AbortSignal.timeout(10000),
       });
       if (!newCommitR.ok) return Response.json({ error: 'Failed to create commit', detail: await newCommitR.text() }, { status: 502 });
