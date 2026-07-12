@@ -1510,6 +1510,7 @@
 				btnPost.innerText = '发送';
 				inputTweet.disabled = false;
 				inputTweet.placeholder = "内容以 : 结尾可显示图片";
+				updateImagePreview();
 			} else {
 				inputTweet.value = '';
 				inputTweet.placeholder = `Login and make a tweet via Github REST API.
@@ -1629,6 +1630,13 @@ The default and minimal required scope is public_repo
 			imagePreviewGrid.className = 'image-preview-grid';
 			if (count === 0) {
 				imageCount.textContent = '';
+				// 显示添加按钮
+				const addBtn = document.createElement('div');
+				addBtn.id = 'addImageBtn';
+				addBtn.className = 'add-image-btn';
+				addBtn.onclick = triggerFileSelect;
+				addBtn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>`;
+				imagePreviewGrid.parentNode.insertBefore(addBtn, imageCount);
 				return;
 			}
 			if (count === 1) imagePreviewGrid.classList.add('cols-1');
