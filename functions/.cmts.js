@@ -53,7 +53,7 @@ function parseAllNotes(data) {
 
 async function fetchNotesFromGitHub(repoPath, token) {
   const [owner, repo] = repoPath.split('/');
-  console.log(`GraphQL fetch: repo=${repoPath}, token=${token ? token.slice(0, 8) + '...' : 'MISSING'}`);
+  console.log(`GraphQL fetch: repo=${repoPath}, token=${token ? 'set' : 'MISSING'}`);
   const resp = await fetch('https://api.github.com/graphql', {
     method: 'POST',
     headers: {
@@ -174,16 +174,18 @@ async function handler(request, env) {
 
       const name = (body.name || '').trim().slice(0, 50);
       const text = (body.text || '').trim();
-      const link = (body.link || '').trim().slice(0, 200);
+      let link = (body.link || '').trim().slice(0, 200);
       const email = (body.email || '').trim().slice(0, 100);
 
       if (!name) return Response.json({ error: '名字不能为空' }, { status: 400 });
       if (!text || text.length > 500) return Response.json({ error: '评论内容为空或超过 500 字符' }, { status: 400 });
+      // 只允许 http/https 链接
+      if (link && !/^https?:\/\//i.test(link)) link = '';
 
       // 读取当前 notes
       let ghData, allNotes;
       try { ghData = await fetchNotesFromGitHub(repo, env.GITHUB_TOKEN); allNotes = parseAllNotes(ghData); }
-      catch (e) { return Response.json({ error: 'Failed to read notes', detail: e.message }, { status: 502 }); }
+      catch (e) { return Response.json({ error: 'Failed to read notes' }, { status: 502 }); }
 
       const notesCommitSha = allNotes._commitSha;
       if (!notesCommitSha) return Response.json({ error: 'No notes commit found' }, { status: 500 });
@@ -217,7 +219,7 @@ async function handler(request, env) {
     return Response.json({ error: 'Method not allowed' }, { status: 405 });
   } catch (e) {
     console.error('cmts error:', e.message, e.stack?.split('\n').slice(0, 3).join(' '));
-    return Response.json({ error: 'Internal error', detail: e.message }, { status: 500 });
+    return Response.json({ error: 'Internal error' }, { status: 500 });
   }
 }
 

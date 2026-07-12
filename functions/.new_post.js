@@ -210,13 +210,7 @@ async function handler(request, env) {
     const r3 = await fetch_json(r3_api, r3_opts);
     const new_sha = r3?.sha;
     if (!new_sha) {
-      console.log(r3_opts);
-      return Response.json({
-        error: 'failed to commit',
-        req: r3_req,
-        rsp: r3,
-        url: r3_api
-      }, {status: 400});
+      return Response.json({ error: 'failed to commit' }, {status: 400});
     }
 
     const r4_api = `${API_BASE}/git/refs/heads/${branch}`;
@@ -230,7 +224,6 @@ async function handler(request, env) {
       credentials: 'include'
     };
     const r4 = await fetch_json(r4_api, r4_opts);
-    console.log(r4_api, r4_opts);
     return Response.json(r4, {status: 201});
 
   } catch (e) {
