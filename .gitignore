@@ -4,3 +4,6 @@
 demo.html
 docs
 *.bak
+*.sublime-project
+*.sublime-workspace
+workers-sdk

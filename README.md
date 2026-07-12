@@ -41,6 +41,10 @@ Post images: commit along with image files under `./static` path. The commit mes
 
 ## 待办 ToDo:
 
+* [ ] 用 git notes 实现点赞和评论
+* [ ] 处理内容里 网址链接 的问题
+* [ ] pica 输出的图片无法强制为 avif
+* [ ] 发推 popup 里多个图片 滚动条导致看不见 添加图片按钮
 * [ ] 多repo通过localStorag切换。并且记住上一次的
 * [ ] Github app for single-repo access
 * [ ] 视频、音频控件 video and audios
