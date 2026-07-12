@@ -1135,7 +1135,28 @@
 			return `${d.getMonth() + 1}月${d.getDate()}日`;
 		}
 
-		// Batch load interactions for a page of commits
+		// 解析 NDJSON → { comments: [...] }
+		function parseNote(ndjson) {
+			const comments = [];
+			if (!ndjson) return { comments };
+			for (const line of ndjson.split('\n')) {
+				if (!line.trim()) continue;
+				try {
+					const e = JSON.parse(line);
+					if (e.type === 'comment') comments.push(e);
+					else if (e.type === 'delete_comment') {
+						const idx = comments.findIndex(c => c.id === e.target);
+						if (idx >= 0) comments.splice(idx, 1);
+					}
+				} catch {}
+			}
+			return { comments };
+		}
+
+		// GraphQL fallback 查询
+		const NOTES_GQL = 'query($o:String!,$r:String!){repository(owner:$o,name:$r){ref(qualifiedName:"refs/notes/commits"){target{...on Commit{tree{entries{name object{...on Blob{text}}}}}}}}}';
+
+		// 批量加载评论
 		async function loadInteractions(commitShas) {
 			if (!commitShas.length) return;
 
@@ -1153,69 +1174,35 @@
 
 			// 2. Fallback: 浏览器直连 GraphQL
 			try {
-				const data = await loadInteractionsFallback();
-				if (!data) return;
+				const token = getCookie(document.cookie, 'access_token');
+				if (!token) return;
+				const [owner, repo] = REPO.split('/');
+				const resp = await fetch('https://api.github.com/graphql', {
+					method: 'POST',
+					headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+					body: JSON.stringify({ query: NOTES_GQL, variables: { o: owner, r: repo } }),
+				});
+				if (!resp.ok) return;
+				const entries = (await resp.json())?.data?.repository?.ref?.target?.tree?.entries;
+				if (!entries) return;
 				for (const sha of commitShas) {
-					if (data[sha]?.comments?.length) renderInteractionComments(sha, data[sha].comments);
+					const entry = entries.find(e => e.name === sha);
+					if (!entry?.object?.text) continue;
+					const { comments } = parseNote(entry.object.text);
+					if (comments.length) renderInteractionComments(sha, comments);
 				}
 			} catch (e) {
 				console.error('Failed to load interactions:', e);
 			}
 		}
 
-		// GraphQL fallback: fetch all notes from browser
-		async function loadInteractionsFallback() {
-			const token = getCookie(document.cookie, 'access_token');
-			if (!token) return null;
-
-			const [owner, repo] = REPO.split('/');
-			const query = `query($owner:String!,$repo:String!){repository(owner:$owner,name:$repo){ref(qualifiedName:"refs/notes/commits"){target{...on Commit{tree{entries{name object{...on Blob{text}}}}}}}}}`;
-
-			const resp = await fetch('https://api.github.com/graphql', {
-				method: 'POST',
-				headers: {
-					'Authorization': `Bearer ${token}`,
-					'Content-Type': 'application/json',
-				},
-				body: JSON.stringify({ query, variables: { owner, repo } }),
-			});
-			if (!resp.ok) return null;
-			const ghData = await resp.json();
-
-			const entries = ghData?.data?.repository?.ref?.target?.tree?.entries;
-			if (!entries) return null;
-
-			const result = {};
-			for (const entry of entries) {
-				const content = entry.object?.text;
-				if (!content) continue;
-				const comments = [];
-				for (const line of content.split('\n')) {
-					if (!line.trim()) continue;
-					try {
-						const e = JSON.parse(line);
-						if (e.type === 'comment') comments.push(e);
-						else if (e.type === 'delete_comment') {
-							const idx = comments.findIndex(c => c.id === e.target);
-							if (idx >= 0) comments.splice(idx, 1);
-						}
-					} catch {}
-				}
-				if (comments.length) result[entry.name] = { comments };
-			}
-			return result;
-		}
-
-		// Render comments for a post
+		// 渲染评论列表
 		function renderInteractionComments(sha, comments) {
 			const postEl = document.getElementById(`post-${sha}`);
 			if (!postEl) return;
 			const section = postEl.querySelector('.like-comment-section');
 			const commentsSection = section.querySelector('.comments-section');
-
-			// 渲染评论列表（不含输入框，输入框由 handleComment 添加）
-			const commentsHtml = comments.map(c => renderCommentItem(c)).join('');
-			commentsSection.innerHTML = commentsHtml;
+			commentsSection.innerHTML = comments.map(c => renderCommentItem(c)).join('');
 			commentsSection.style.display = 'block';
 			section.style.display = 'block';
 		}

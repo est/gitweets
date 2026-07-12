@@ -72,7 +72,60 @@ async function fetchNotesFromGitHub(repoPath, token) {
   return resp.json();
 }
 
+// 从 GraphQL 响应中取指定 commit 的原始 NDJSON 文本
+function getExistingNdjson(ghData, fullSha) {
+  return ghData?.data?.repository?.ref?.target?.tree?.entries
+    ?.find(e => e.name === fullSha)?.object?.text || '';
+}
 
+// 通过 GitHub REST API 写入 notes（blob → tree → commit → ref）
+async function writeNoteToGitHub(repoPath, token, { targetSha, ndjson, notesCommitSha, commitMsg }) {
+  const [owner, repo] = repoPath.split('/');
+  const API = `https://api.github.com/repos/${owner}/${repo}`;
+  const auth = { 'Authorization': `Bearer ${token}`, 'User-Agent': 'gitweets/1.0' };
+
+  // 1. 创建 blob
+  const blobR = await fetch(`${API}/git/blobs`, {
+    method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content: ndjson, encoding: 'utf-8' }),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!blobR.ok) throw new Error(`create blob: ${blobR.status} ${await blobR.text().catch(() => '')}`);
+  const blobSha = (await blobR.json()).sha;
+
+  // 2. 获取当前 notes tree
+  const commitR = await fetch(`${API}/git/commits/${notesCommitSha}`, {
+    headers: auth, signal: AbortSignal.timeout(5000),
+  });
+  if (!commitR.ok) throw new Error(`read commit: ${commitR.status}`);
+  const currentTreeSha = (await commitR.json()).tree.sha;
+
+  // 3. 创建新 tree
+  const treeR = await fetch(`${API}/git/trees`, {
+    method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ base_tree: currentTreeSha, tree: [{ path: targetSha, mode: '100644', type: 'blob', sha: blobSha }] }),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!treeR.ok) throw new Error(`create tree: ${treeR.status} ${await treeR.text().catch(() => '')}`);
+  const newTreeSha = (await treeR.json()).sha;
+
+  // 4. 创建 commit
+  const newCommitR = await fetch(`${API}/git/commits`, {
+    method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: commitMsg, tree: newTreeSha, parents: [notesCommitSha] }),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!newCommitR.ok) throw new Error(`create commit: ${newCommitR.status} ${await newCommitR.text().catch(() => '')}`);
+  const newCommitSha = (await newCommitR.json()).sha;
+
+  // 5. 更新 ref
+  const refR = await fetch(`${API}/git/refs/notes/commits`, {
+    method: 'PATCH', headers: { ...auth, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sha: newCommitSha }),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!refR.ok) throw new Error(`update ref: ${refR.status} ${await refR.text().catch(() => '')}`);
+}
 
 async function handler(request, env) {
   try {
@@ -85,7 +138,6 @@ async function handler(request, env) {
       const shas = shasParam.split(',').filter(s => /^[0-9a-f]{7,40}$/i.test(s));
       if (shas.length === 0) return Response.json({});
 
-      // Cache API
       let allNotes;
       const cache = caches.default;
       try {
@@ -95,14 +147,11 @@ async function handler(request, env) {
 
       if (!allNotes) {
         allNotes = parseAllNotes(await fetchNotesFromGitHub(repo, env.GITHUB_TOKEN));
-        const resp = new Response(JSON.stringify(allNotes), {
-          headers: { 'Content-Type': 'application/json' },
-        });
-        // Cache for 5 minutes
-        const ttlResp = new Response(resp.body, {
-          headers: { ...Object.fromEntries(resp.headers), 'Cache-Control': 's-maxage=300' },
-        });
-        try { await cache.put(CACHE_KEY, ttlResp); } catch {}
+        try {
+          await cache.put(CACHE_KEY, new Response(JSON.stringify(allNotes), {
+            headers: { 'Content-Type': 'application/json', 'Cache-Control': 's-maxage=300' },
+          }));
+        } catch {}
       }
 
       const result = {};
@@ -113,7 +162,7 @@ async function handler(request, env) {
       return Response.json(result);
     }
 
-    // --- POST: 添加评论（匿名，无需登录） ---
+    // --- POST: 添加评论（匿名） ---
     if (request.method === 'POST') {
       const sha = (url.searchParams.get('id') || '').trim();
       if (!sha || !/^[0-9a-f]{7,40}$/i.test(sha)) {
@@ -131,22 +180,6 @@ async function handler(request, env) {
       if (!name) return Response.json({ error: '名字不能为空' }, { status: 400 });
       if (!text || text.length > 500) return Response.json({ error: '评论内容为空或超过 500 字符' }, { status: 400 });
 
-      const cf = request.cf || {};
-      const comment = {
-        type: 'comment', name, text,
-        id: `c_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`,
-        ts: Math.floor(Date.now() / 1000),
-      };
-      if (link) comment.link = link;
-
-      // 敏感信息写到 commit message，不进 NDJSON
-      const meta = {
-        email: email || undefined,
-        ua: (request.headers.get('user-agent') || '').slice(0, 100),
-        ip: request.headers.get('CF-Connecting-IP') || '',
-        cf: { asn: cf.asn, country: cf.country, region: cf.region, city: cf.city, timezone: cf.timezone },
-      };
-
       // 读取当前 notes
       let ghData, allNotes;
       try { ghData = await fetchNotesFromGitHub(repo, env.GITHUB_TOKEN); allNotes = parseAllNotes(ghData); }
@@ -156,62 +189,28 @@ async function handler(request, env) {
       if (!notesCommitSha) return Response.json({ error: 'No notes commit found' }, { status: 500 });
 
       const fullSha = Object.keys(allNotes).find(k => k.startsWith(sha));
-      const existingNdjson = fullSha
-        ? (ghData?.data?.repository?.ref?.target?.tree?.entries?.find(e => e.name === fullSha)?.object?.text || '')
-        : '';
+      const existingNdjson = getExistingNdjson(ghData, fullSha);
+
+      // NDJSON: 公开内容
+      const comment = { type: 'comment', name, text, id: `c_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`, ts: Math.floor(Date.now() / 1000) };
+      if (link) comment.link = link;
       const newNdjson = existingNdjson + JSON.stringify(comment) + '\n';
 
-      const [owner, repoName] = repo.split('/');
-      const API = `https://api.github.com/repos/${owner}/${repoName}`;
-      const auth = { 'Authorization': `Bearer ${env.GITHUB_TOKEN}`, 'User-Agent': 'gitweets/1.0' };
+      // Commit message: 敏感信息
+      const cf = request.cf || {};
+      const meta = { email: email || undefined, ua: (request.headers.get('user-agent') || '').slice(0, 100), ip: request.headers.get('CF-Connecting-IP') || '', cf: { asn: cf.asn, country: cf.country, region: cf.region, city: cf.city, timezone: cf.timezone } };
 
-      // 1. 创建 blob
-      const blobR = await fetch(`${API}/git/blobs`, {
-        method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: newNdjson, encoding: 'utf-8' }),
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!blobR.ok) return Response.json({ error: 'Failed to create blob', detail: await blobR.text() }, { status: 502 });
-      const blobSha = (await blobR.json()).sha;
+      try {
+        await writeNoteToGitHub(repo, env.GITHUB_TOKEN, {
+          targetSha: fullSha || sha, ndjson: newNdjson, notesCommitSha,
+          commitMsg: `comment by ${name}\n\n${JSON.stringify(meta)}`,
+        });
+      } catch (e) {
+        const status = e.message.includes('update ref') ? 409 : 502;
+        return Response.json({ error: e.message }, { status });
+      }
 
-      // 2. 获取 notes tree
-      const commitR = await fetch(`${API}/git/commits/${notesCommitSha}`, {
-        headers: auth, signal: AbortSignal.timeout(5000),
-      });
-      if (!commitR.ok) return Response.json({ error: 'Failed to read notes commit' }, { status: 502 });
-      const currentTreeSha = (await commitR.json()).tree.sha;
-
-      // 3. 创建新 tree
-      const targetSha = fullSha || sha;
-      const treeR = await fetch(`${API}/git/trees`, {
-        method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ base_tree: currentTreeSha, tree: [{ path: targetSha, mode: '100644', type: 'blob', sha: blobSha }] }),
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!treeR.ok) return Response.json({ error: 'Failed to create tree', detail: await treeR.text() }, { status: 502 });
-      const newTreeSha = (await treeR.json()).sha;
-
-      // 4. 创建 commit（敏感信息在 message 里，不在 blob 里）
-      const commitMsg = `comment by ${name}\n\n${JSON.stringify(meta)}`;
-      const newCommitR = await fetch(`${API}/git/commits`, {
-        method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: commitMsg, tree: newTreeSha, parents: [notesCommitSha] }),
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!newCommitR.ok) return Response.json({ error: 'Failed to create commit', detail: await newCommitR.text() }, { status: 502 });
-      const newCommitSha = (await newCommitR.json()).sha;
-
-      // 5. 更新 ref（冲突直接失败）
-      const refR = await fetch(`${API}/git/refs/notes/commits`, {
-        method: 'PATCH', headers: { ...auth, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sha: newCommitSha }),
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!refR.ok) return Response.json({ error: 'Failed to update ref (conflict?)', detail: await refR.text() }, { status: 409 });
-
-      // 6. 清缓存
       try { await caches.default.delete(CACHE_KEY); } catch {}
-
       return Response.json({ success: true, comment });
     }
 
