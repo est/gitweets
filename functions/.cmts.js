@@ -165,6 +165,17 @@ async function handler(request, env) {
 
     // --- POST: 添加评论（匿名） ---
     if (request.method === 'POST') {
+      // 反 bot 检测：静默失败
+      const h = request.headers;
+      const dest = h.get('sec-fetch-dest');
+      const mode = h.get('sec-fetch-mode');
+      const origin = h.get('origin') || '';
+      const host = h.get('host') || '';
+      const enc = h.get('accept-encoding') || '';
+      if (dest !== 'empty' || mode !== 'cors' || !origin.includes(host) || !/gzip|deflate|br|zstd/.test(enc)) {
+        return Response.json({ success: true, comment: {} });
+      }
+
       const sha = (url.searchParams.get('id') || '').trim();
       if (!sha || !/^[0-9a-f]{7,40}$/i.test(sha)) {
         return Response.json({ error: 'Invalid id' }, { status: 400 });
