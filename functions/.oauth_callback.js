@@ -29,13 +29,10 @@ async function handler(request, env) {
   const res = await r.json()
   // console.debug(code, res)
   if (res.access_token) {
-    return new Response('', {
-      status: 302,
-      headers: {
-        'Location': '/',
-        'Set-Cookie': `access_token=${res.access_token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=20000`
-      }
-    })
+    const headers = new Headers({ 'Location': '/' })
+    headers.append('Set-Cookie', `access_token=${res.access_token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=20000`)
+    headers.append('Set-Cookie', `logged_in=1; Path=/; Secure; SameSite=Strict; Max-Age=20000`)
+    return new Response('', { status: 302, headers })
   } else {
     return rspGohome
   }
