@@ -1685,77 +1685,51 @@ The default and minimal required scope is public_repo
 				return file;
 			}
 
-			// 计算目标尺寸（更激进的压缩比例）
 			const img = new Image();
 			img.src = URL.createObjectURL(file);
+			await new Promise((resolve) => { img.onload = resolve; });
 
-			await new Promise((resolve) => {
-				img.onload = resolve;
-			});
-
-			// 初始压缩比例：基于目标大小计算，留更多余量
-			let ratio = Math.sqrt(targetSize / file.size) * 0.6;
+			// 初始压缩比例
+			let ratio = Math.sqrt(targetSize / file.size) * 0.7;
 			let width = Math.round(img.width * ratio);
 			let height = Math.round(img.height * ratio);
-
-			// 最小尺寸限制
 			if (width < 640) {
 				width = 640;
 				height = Math.round(img.height * (640 / img.width));
 			}
 
-			// 尝试使用 pica 进行高质量缩放
-			let usePica = true;
-			let p = null;
-			try {
-				p = await loadPica();
-			} catch (e) {
-				console.error('Pica not available, using canvas:', e);
-				usePica = false;
-			}
+			// 加载 pica
+			let usePica = true, p = null;
+			try { p = await loadPica(); } catch (e) { usePica = false; }
 
-			// 迭代压缩，直到接近目标大小
-			let blob = null;
-			let quality = 0.7; // 初始质量
-			const minQuality = 0.3;
-			const maxAttempts = 3;
-
-			for (let attempt = 0; attempt < maxAttempts; attempt++) {
-				// 缩放到目标尺寸
+			const compress = async () => {
 				const canvas = document.createElement('canvas');
 				canvas.width = width;
 				canvas.height = height;
 				if (usePica && p) {
-					await p.resize(img, canvas, {
-						quality: 3, alpha: true,
-						unsharpAmount: 80, unsharpRadius: 0.6, unsharpThreshold: 2
-					});
+					await p.resize(img, canvas, { quality: 3, alpha: true, unsharpAmount: 80, unsharpRadius: 0.6, unsharpThreshold: 2 });
 				} else {
 					canvas.getContext('2d').drawImage(img, 0, 0, width, height);
 				}
-
-				// 按优先级尝试格式：avif → webp → jpeg
 				for (const type of ['image/avif', 'image/webp', 'image/jpeg']) {
-					blob = await new Promise(resolve => canvas.toBlob(resolve, type, quality));
-					if (blob) break;
+					const blob = await new Promise(resolve => canvas.toBlob(resolve, type, 0.85));
+					if (blob) return blob;
 				}
+				return null;
+			};
 
-				// 检查是否接近目标大小
-				if (blob.size <= targetSize * 1.1) {
-					break; // 在 10% 误差范围内，接受
-				}
+			// 第一轮
+			let blob = await compress();
 
-				// 继续压缩：降低质量或尺寸
-				if (attempt < maxAttempts - 1) {
-					quality = Math.max(minQuality, quality - 0.15);
-					width = Math.round(width * 0.85);
-					height = Math.round(height * 0.85);
-				}
+			// 根据实际压缩比估算理想尺寸，再压一轮
+			if (blob && blob.size > targetSize) {
+				const scale = Math.sqrt(targetSize / blob.size);
+				width = Math.round(width * scale);
+				height = Math.round(height * scale);
+				blob = await compress();
 			}
 
-			// 清理内存
 			URL.revokeObjectURL(img.src);
-
 			return blob || file;
 		}
 
