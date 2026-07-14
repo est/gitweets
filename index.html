@@ -1539,7 +1539,7 @@ The default and minimal required scope is public_repo
 		}
 
 		// 文件选择处理
-		fileInput.addEventListener('change', function(e) {
+		fileInput.addEventListener('change', async function(e) {
 			const files = Array.from(e.target.files);
 			if (!files.length) return;
 
@@ -1551,26 +1551,36 @@ The default and minimal required scope is public_repo
 			}
 
 			let added = 0;
-			files.forEach(file => {
-				if (added >= remaining) return;
+			for (const file of files) {
+				if (added >= remaining) break;
 
 				// 验证文件类型
 				if (!file.type.startsWith('image/')) {
 					alert(`${file.name} 不是图片文件`);
-					return;
+					continue;
 				}
 
 				// 验证文件大小
 				if (file.size > MAX_FILE_SIZE) {
 					alert(`${file.name} 超过 5MB 限制`);
-					return;
+					continue;
 				}
 
-				const url = URL.createObjectURL(file);
-				const filename = generateFilename(file);
-				selectedImages.push({ file, url, filename });
+				// 立即压缩
+				console.log('[select] compressing', file.name);
+				const compressed = await compressImage(file);
+				console.log('[select] done', compressed.type, compressed.size);
+
+				const url = URL.createObjectURL(compressed);
+				let filename = generateFilename(file);
+				// 更新扩展名以匹配实际格式
+				if (compressed.type && compressed.type !== file.type) {
+					const ext = compressed.type.split('/')[1];
+					filename = filename.replace(/\.[^.]+$/, '.' + ext);
+				}
+				selectedImages.push({ file: compressed, url, filename });
 				added++;
-			});
+			}
 
 			if (files.length > remaining) {
 				alert(`已达上限，只添加了前 ${remaining} 张`);
@@ -1680,54 +1690,52 @@ The default and minimal required scope is public_repo
 
 		// 压缩图片到目标大小（迭代压缩，确保接近目标）
 		async function compressImage(file, targetSize = 100 * 1024) {
-			// 如果已经小于目标大小，直接返回
-			if (file.size <= targetSize) {
-				return file;
-			}
+			if (file.size <= targetSize) return file;
 
 			const img = new Image();
 			img.loading = 'eager';
 			img.src = URL.createObjectURL(file);
-			await img.decode();
+			try { await img.decode(); } catch (e) { return file; }
 
-			// 初始压缩比例
-			let ratio = Math.sqrt(targetSize / file.size) * 0.7;
-			let width = Math.round(img.width * ratio);
-			let height = Math.round(img.height * ratio);
-			if (width < 640) {
-				width = 640;
-				height = Math.round(img.height * (640 / img.width));
+			// 探测浏览器实际支持的格式（小 canvas 测试）
+			let format = 'image/jpeg';
+			const probe = document.createElement('canvas');
+			probe.width = probe.height = 2;
+			for (const type of ['image/avif', 'image/webp', 'image/jpeg']) {
+				const b = await new Promise(r => probe.toBlob(r, type, 0.5));
+				if (b && b.type === type) { format = type; break; }
 			}
+			console.log('[compress] format:', format, 'source:', file.name, file.size);
 
 			// 加载 pica
 			let usePica = true, p = null;
 			try { p = await loadPica(); } catch (e) { usePica = false; }
 
-			const compress = async () => {
+			const compress = async (w, h) => {
 				const canvas = document.createElement('canvas');
-				canvas.width = width;
-				canvas.height = height;
+				canvas.width = w; canvas.height = h;
 				if (usePica && p) {
 					await p.resize(img, canvas, { quality: 3, alpha: true, unsharpAmount: 80, unsharpRadius: 0.6, unsharpThreshold: 2 });
 				} else {
-					canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+					canvas.getContext('2d').drawImage(img, 0, 0, w, h);
 				}
-				for (const type of ['image/avif', 'image/webp', 'image/jpeg']) {
-					const blob = await new Promise(resolve => canvas.toBlob(resolve, type, 0.85));
-					if (blob) return blob;
-				}
-				return null;
+				return new Promise(resolve => canvas.toBlob(resolve, format, 0.85));
 			};
 
-			// 第一轮
-			let blob = await compress();
+			// 先试 800 宽（或原图如果更小）
+			let width = Math.min(800, img.width);
+			let height = Math.round(img.height * (width / img.width));
 
-			// 根据实际压缩比估算理想尺寸，再压一轮
+			let blob = await compress(width, height);
+			console.log('[compress] round 1:', width, 'x', height, '->', blob?.size, 'bytes');
+
+			// 超过目标，根据实际压缩比精确缩放
 			if (blob && blob.size > targetSize) {
 				const scale = Math.sqrt(targetSize / blob.size);
 				width = Math.round(width * scale);
 				height = Math.round(height * scale);
-				blob = await compress();
+				blob = await compress(width, height);
+				console.log('[compress] round 2:', width, 'x', height, '->', blob?.size, 'bytes');
 			}
 
 			URL.revokeObjectURL(img.src);
@@ -1756,19 +1764,10 @@ The default and minimal required scope is public_repo
 				formData.append('repo', REPO);
 				formData.append('message', text);
 
-				// 浏览器压缩图片
+				// 图片已在选择时压缩
 				if (selectedImages.length > 0) {
-					btnPost.innerText = '压缩图片中...';
 					for (let i = 0; i < selectedImages.length; i++) {
-						btnPost.innerText = `压缩图片 ${i+1}/${selectedImages.length}...`;
-						const compressed = await compressImage(selectedImages[i].file);
-						// 更新扩展名以匹配实际格式
-						let fname = selectedImages[i].filename;
-						if (compressed.type && compressed.type !== selectedImages[i].file.type) {
-							const ext = compressed.type.split('/')[1];
-							fname = fname.replace(/\.[^.]+$/, '.' + ext);
-						}
-						formData.append('images', compressed, fname);
+						formData.append('images', selectedImages[i].file, selectedImages[i].filename);
 					}
 				}
 
