@@ -1690,76 +1690,56 @@ The default and minimal required scope is public_repo
 
 		// 压缩图片到目标大小（迭代压缩，确保接近目标）
 		async function compressImage(file, targetSize = 100 * 1024) {
-			console.log('[compress] start', file.name, file.size, file.type);
-
-			// 如果已经小于目标大小，直接返回
-			if (file.size <= targetSize) {
-				console.log('[compress] already small enough');
-				return file;
-			}
+			if (file.size <= targetSize) return file;
 
 			const img = new Image();
 			img.loading = 'eager';
 			img.src = URL.createObjectURL(file);
-			console.log('[compress] waiting for decode...');
-			try {
-				await img.decode();
-				console.log('[compress] decoded', img.width, 'x', img.height);
-			} catch (e) {
-				console.error('[compress] decode failed:', e);
-				return file;
-			}
+			try { await img.decode(); } catch (e) { return file; }
 
-			// 初始压缩比例
-			let ratio = Math.sqrt(targetSize / file.size) * 0.7;
-			let width = Math.round(img.width * ratio);
-			let height = Math.round(img.height * ratio);
-			if (width < 640) {
-				width = 640;
-				height = Math.round(img.height * (640 / img.width));
+			// 探测浏览器实际支持的格式（小 canvas 测试）
+			let format = 'image/jpeg';
+			const probe = document.createElement('canvas');
+			probe.width = probe.height = 2;
+			for (const type of ['image/avif', 'image/webp', 'image/jpeg']) {
+				const b = await new Promise(r => probe.toBlob(r, type, 0.5));
+				if (b && b.type === type) { format = type; break; }
 			}
-			console.log('[compress] target size', width, 'x', height);
+			console.log('[compress] format:', format, 'source:', file.name, file.size);
 
 			// 加载 pica
 			let usePica = true, p = null;
-			try { p = await loadPica(); console.log('[compress] pica loaded'); } catch (e) { usePica = false; console.log('[compress] pica failed, using canvas'); }
+			try { p = await loadPica(); } catch (e) { usePica = false; }
 
-			const compress = async () => {
-				console.log('[compress] compressing...');
+			const compress = async (w, h) => {
 				const canvas = document.createElement('canvas');
-				canvas.width = width;
-				canvas.height = height;
+				canvas.width = w; canvas.height = h;
 				if (usePica && p) {
 					await p.resize(img, canvas, { quality: 3, alpha: true, unsharpAmount: 80, unsharpRadius: 0.6, unsharpThreshold: 2 });
 				} else {
-					canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+					canvas.getContext('2d').drawImage(img, 0, 0, w, h);
 				}
-				for (const type of ['image/avif', 'image/webp', 'image/jpeg']) {
-					const blob = await new Promise(resolve => canvas.toBlob(resolve, type, 0.85));
-					console.log('[compress] toBlob', type, blob ? blob.type + ' ' + blob.size : 'null');
-					if (blob && blob.type === type) return blob;
-				}
-				return null;
+				return new Promise(resolve => canvas.toBlob(resolve, format, 0.85));
 			};
 
-			// 第一轮
-			let blob = await compress();
-			console.log('[compress] first round result:', blob ? blob.type + ' ' + blob.size : 'null');
+			// 先试 800 宽（或原图如果更小）
+			let width = Math.min(800, img.width);
+			let height = Math.round(img.height * (width / img.width));
 
-			// 根据实际压缩比估算理想尺寸，再压一轮
+			let blob = await compress(width, height);
+			console.log('[compress] round 1:', width, 'x', height, '->', blob?.size, 'bytes');
+
+			// 超过目标，根据实际压缩比精确缩放
 			if (blob && blob.size > targetSize) {
 				const scale = Math.sqrt(targetSize / blob.size);
 				width = Math.round(width * scale);
 				height = Math.round(height * scale);
-				console.log('[compress] second round, new size', width, 'x', height);
-				blob = await compress();
-				console.log('[compress] second round result:', blob ? blob.type + ' ' + blob.size : 'null');
+				blob = await compress(width, height);
+				console.log('[compress] round 2:', width, 'x', height, '->', blob?.size, 'bytes');
 			}
 
 			URL.revokeObjectURL(img.src);
-			const result = blob || file;
-			console.log('[compress] final result:', result.type, result.size, result instanceof File ? '(original file)' : '(blob)');
-			return result;
+			return blob || file;
 		}
 
 		// Post button handler
