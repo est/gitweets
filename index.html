@@ -1686,8 +1686,9 @@ The default and minimal required scope is public_repo
 			}
 
 			const img = new Image();
+			img.loading = 'eager';
 			img.src = URL.createObjectURL(file);
-			await new Promise((resolve) => { img.onload = resolve; });
+			await img.decode();
 
 			// 初始压缩比例
 			let ratio = Math.sqrt(targetSize / file.size) * 0.7;
