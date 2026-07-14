@@ -165,6 +165,10 @@ async function handler(request, env) {
     }
 
     const access_token = getCookie(request.headers.get('cookie'), 'access_token');
+    const opts = {headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${access_token}`
+    }, credentials: 'include'}
 
     let blobResults = [];
     if (processedImages.length > 0) {
@@ -173,12 +177,12 @@ async function handler(request, env) {
     }
 
     const API_BASE = `https://api.github.com/repos/${repo}`;
-    const r1 = await fetch_json(`${API_BASE}/commits?per_page=1`);
+    const r1 = await fetch_json(`${API_BASE}/commits?per_page=1`, opts);
     const last_sha = r1?.[0]?.sha;
     const last_tree = r1?.[0]?.commit?.tree?.sha;
     if (!last_sha || !last_tree) return Response.json({error: 'no last commit', rsp: r1}, {status: 400});
 
-    const r2 = await fetch_json(`${API_BASE}/commits/${last_sha}/branches-where-head`);
+    const r2 = await fetch_json(`${API_BASE}/commits/${last_sha}/branches-where-head`, opts);
     const branch = r2?.[0]?.name;
     if (!branch) return Response.json({error: 'no branch', rsp: r2}, {status: 400});
 
@@ -200,12 +204,8 @@ async function handler(request, env) {
     };
     const r3_opts = {
       method: 'post',
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${access_token}`
-      },
       body: JSON.stringify(r3_req),
-      credentials: 'include'
+      ...opts
     };
     const r3 = await fetch_json(r3_api, r3_opts);
     const new_sha = r3?.sha;
@@ -217,12 +217,8 @@ async function handler(request, env) {
     const r4_api = `${API_BASE}/git/refs/heads/${branch}`;
     const r4_opts = {
       method: 'patch',
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${access_token}`
-      },
       body: JSON.stringify({sha: new_sha}),
-      credentials: 'include'
+      ...opts
     };
     const r4 = await fetch_json(r4_api, r4_opts);
     // console.log(r4_api, r4_opts);
