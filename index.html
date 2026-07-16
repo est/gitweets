@@ -1604,6 +1604,46 @@ The default and minimal required scope is public_repo
 		window.removeImage = removeImage;
 		window.triggerFileSelect = triggerFileSelect;
 
+		// 粘贴图片支持
+		document.getElementById('inputTweet').addEventListener('paste', async function(e) {
+			const items = Array.from(e.clipboardData?.items || []);
+			const imageItems = items.filter(item => item.type.startsWith('image/'));
+			if (imageItems.length === 0) return;
+
+			e.preventDefault();
+			const remaining = MAX_IMAGES - selectedImages.length;
+			if (remaining <= 0) {
+				alert(`最多选择 ${MAX_IMAGES} 张图片`);
+				return;
+			}
+
+			let added = 0;
+			for (const item of imageItems) {
+				if (added >= remaining) break;
+				const file = item.getAsFile();
+				if (!file) continue;
+
+				console.log('[paste] compressing', file.name || 'clipboard-image');
+				const compressed = await compressImage(file);
+				console.log('[paste] done', compressed.type, compressed.size);
+
+				const url = URL.createObjectURL(compressed);
+				let filename = generateFilename(file);
+				if (compressed.type && compressed.type !== file.type) {
+					const ext = compressed.type.split('/')[1];
+					filename = filename.replace(/\.[^.]+$/, '.' + ext);
+				}
+				selectedImages.push({ file: compressed, url, filename });
+				added++;
+			}
+
+			if (imageItems.length > remaining) {
+				alert(`已达上限，只添加了前 ${remaining} 张`);
+			}
+
+			updateImagePreview();
+		});
+
 		// 更新预览网格
 		function updateImagePreview() {
 			const count = selectedImages.length;
