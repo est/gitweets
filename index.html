@@ -1730,7 +1730,9 @@ The default and minimal required scope is public_repo
 
 		// 压缩图片到目标大小（迭代压缩，确保接近目标）
 		async function compressImage(file, targetSize = 100 * 1024) {
-			if (file.size <= targetSize) return file;
+			// 即使文件很小，如果格式不是 avif/webp/jpeg，也需要转换
+			const smallAndTargetFormat = file.size <= targetSize && /^(image\/(jpeg|webp|avif))$/.test(file.type);
+			if (smallAndTargetFormat) return file;
 
 			const img = new Image();
 			img.loading = 'eager';
