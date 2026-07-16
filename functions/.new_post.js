@@ -57,7 +57,11 @@ async function createBlob(repo, content, token) {
     })
   });
 
-  return response.sha;
+  if (!response || !response.sha) {
+    console.error('createBlob failed:', { response, contentLength: content.byteLength });
+  }
+
+  return response?.sha;
 }
 
 async function createBlobs(repo, images, token) {
@@ -65,7 +69,12 @@ async function createBlobs(repo, images, token) {
     const sha = await createBlob(repo, img.content, token);
     return { sha, filename: img.filename };
   });
-  return Promise.all(promises);
+  const results = await Promise.all(promises);
+  const failed = results.filter(r => !r.sha);
+  if (failed.length > 0) {
+    console.error('createBlobs failed for:', failed.map(f => f.filename));
+  }
+  return results;
 }
 
 function getImagePath(filename) {
@@ -97,7 +106,16 @@ async function createTree(repo, baseTree, blobs, token) {
     })
   });
 
-  return response.sha;
+  if (!response || !response.sha) {
+    console.error('createTree failed:', {
+      response,
+      baseTree,
+      treeCount: tree.length,
+      repo
+    });
+  }
+
+  return response;
 }
 
 // 验证函数
@@ -173,7 +191,12 @@ async function handler(request, env) {
     let blobResults = [];
     if (processedImages.length > 0) {
       blobResults = await createBlobs(repo, processedImages, access_token);
-      console.log(`Created ${blobResults.length} blobs`);
+      const validBlobs = blobResults.filter(b => b.sha);
+      if (validBlobs.length !== blobResults.length) {
+        return Response.json({ error: 'failed to create some blobs' }, {status: 400});
+      }
+      console.log(`Created ${validBlobs.length} blobs`);
+      blobResults = validBlobs;
     }
 
     const API_BASE = `https://api.github.com/repos/${repo}`;
@@ -188,7 +211,11 @@ async function handler(request, env) {
 
     let new_tree_sha = last_tree;
     if (blobResults.length > 0) {
-      new_tree_sha = await createTree(repo, last_tree, blobResults, access_token);
+      const tree_rsp = await createTree(repo, last_tree, blobResults, access_token);
+      new_tree_sha = tree_rsp?.sha;
+      if (!new_tree_sha) {
+        return Response.json({ error: 'failed to create tree', rsp: tree_rsp }, {status: 400});
+      }
       console.log(`Created new tree: ${new_tree_sha}`);
     }
 
