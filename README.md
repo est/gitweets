@@ -41,11 +41,31 @@ Post images: commit along with image files under `./static` path. The commit mes
 
 ## 待办 ToDo:
 
+
+
+* [ ] 把 functions 改成 /api/ 这样比较统一？
+* [ ] 用isomorphic-git支持任意 git http；CF 图片处理。
+* [ ] 浏览器发起REST API，看是否能避免莫名其妙的 400 错误；CF作为 failback
+* [ ] 把 github 的REST API抽到 github.reader.js 和 github.writer.js 
+* [ ] 引用 card。渲染 x/mstn/bsky 的帖子
+* [ ] 评论允许 github 登录
+* [ ] 邮件提醒回复
+
+
+### Maybe
+
 * [ ] 多repo通过localStorag切换。并且记住上一次的
 * [ ] Github app for single-repo access
 * [ ] 视频、音频控件 video and audios
 * [ ] 网址 microformats 支持卡片
 * [ ] non-github API 支持：gitlab等
+
+
+
+
+### Done
+
+* [X] 改名 CloudSettler
 * [X] 用 git notes 实现点赞和评论
 * [X] 处理内容里 网址链接 的问题
 * [X] pica 输出的图片无法强制为 avif

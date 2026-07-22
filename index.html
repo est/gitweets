@@ -722,16 +722,15 @@
 		.image-preview-grid.cols-9 { grid-template-columns: repeat(4, 1fr); }
 
 		.add-image-btn {
-			display: inline-flex;
+			display: flex;
 			align-items: center;
 			justify-content: center;
-			width: 48px;
-			height: 48px;
+			aspect-ratio: 1;
 			border: 1px dashed #ccc;
 			border-radius: 4px;
 			cursor: pointer;
 			color: #999;
-			margin-bottom: 8px;
+			min-height: 0;
 		}
 
 		.add-image-btn:hover {
@@ -857,11 +856,11 @@
 				<span class="close-btn" onclick="closeModal()">&times;</span>
 			</div>
 			<div class="modal-body">
+				<textarea id="inputTweet" placeholder="内容以 : 结尾可显示图片"></textarea>
 				<div class="image-preview-grid" id="imagePreviewGrid">
 					<!-- 图片预览和 + 按钮将在这里动态添加 -->
 				</div>
 				<div class="image-count" id="imageCount"></div>
-				<textarea id="inputTweet" placeholder="内容以 : 结尾可显示图片"></textarea>
 			</div>
 			<div class="modal-footer">
 				<button onclick="closeModal()">取消</button>
@@ -1648,22 +1647,21 @@ The default and minimal required scope is public_repo
 		function updateImagePreview() {
 			const count = selectedImages.length;
 
-			// 清空网格和添加按钮
+			// 清空网格
 			imagePreviewGrid.innerHTML = '';
-			const oldAddBtn = document.getElementById('addImageBtn');
-			if (oldAddBtn) oldAddBtn.remove();
 
 			// 更新列数类名
 			imagePreviewGrid.className = 'image-preview-grid';
 			if (count === 0) {
 				imageCount.textContent = '';
+				imagePreviewGrid.classList.add('cols-1');
 				// 显示添加按钮
 				const addBtn = document.createElement('div');
 				addBtn.id = 'addImageBtn';
 				addBtn.className = 'add-image-btn';
 				addBtn.onclick = triggerFileSelect;
 				addBtn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>`;
-				imagePreviewGrid.parentNode.insertBefore(addBtn, imageCount);
+				imagePreviewGrid.appendChild(addBtn);
 				return;
 			}
 			if (count === 1) imagePreviewGrid.classList.add('cols-1');
@@ -1684,14 +1682,14 @@ The default and minimal required scope is public_repo
 				imagePreviewGrid.appendChild(item);
 			});
 
-			// 添加 + 按钮（网格下方）
+			// 添加 + 按钮（与预览图同一行）
 			if (count < 9) {
 				const addBtn = document.createElement('div');
 				addBtn.id = 'addImageBtn';
 				addBtn.className = 'add-image-btn';
 				addBtn.onclick = triggerFileSelect;
 				addBtn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>`;
-				imagePreviewGrid.parentNode.insertBefore(addBtn, imageCount);
+				imagePreviewGrid.appendChild(addBtn);
 			}
 
 			// 更新数量指示器
