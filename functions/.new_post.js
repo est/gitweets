@@ -157,21 +157,22 @@ function arrayBufferToBase64(buffer) {
 }
 
 // 通过 Contents API 上传单个文件（支持 OAuth token）
-async function uploadFile(repo, path, content, message, branch, token) {
+// sha 可选：更新已有文件时需传入，新建时不传
+async function uploadFile(repo, path, content, message, token, sha) {
+  /* https://docs.github.com/en/rest/repos/contents#create-or-update-file-contents */
   const API_BASE = `https://api.github.com/repos/${repo}`;
   const base64 = typeof content === 'string' ? btoa(content) : arrayBufferToBase64(content);
   const encodedPath = path.split('/').map(s => encodeURIComponent(s)).join('/');
+
+  const body = { message, content: base64};
+  if (sha) body.sha = sha;  // 更新已有文件时需要
 
   return fetch_json(`${API_BASE}/contents/${encodedPath}`, {
     method: 'PUT',
     headers: {
       'Authorization': `Bearer ${token}`
     },
-    body: JSON.stringify({
-      message,
-      content: base64,
-      branch
-    })
+    body: JSON.stringify(body)
   });
 }
 
@@ -257,39 +258,31 @@ async function handler(request, env) {
       "Authorization": `Bearer ${access_token}`
     }}
 
+
+    const commitMessage = processedImages.length > 0 && !message.endsWith(':')
+      ? message + ':'
+      : message;
+
+
     // ============================================================
     // Contents API 路径：纯文本或单图，走 PUT /contents（支持 OAuth）
     // 多图仍走下面的 Git Data API 路径做对比测试
     // ============================================================
-    if (processedImages.length <= 1) {
-      // console.log('[Contents API] 纯文本/单图，使用 Contents API 路径');
-      const API_BASE = `https://api.github.com/repos/${repo}`;
-
-      // 获取分支（公共 API 不需要 token）
-      const r1 = await fetch_json(`${API_BASE}/commits?per_page=1`);
-      const last_sha = r1?.[0]?.sha;
-      if (!last_sha) return Response.json({error: '无法获取最新提交', detail: r1?.message}, {status: 400});
-      const r2 = await fetch_json(`${API_BASE}/commits/${last_sha}/branches-where-head`);
-      const branch = r2?.[0]?.name;
-      if (!branch) return Response.json({error: '无法获取分支信息', detail: r2?.message}, {status: 400});
-
-      const commitMessage = processedImages.length > 0 && !message.endsWith(':')
-        ? message + ':' : message;
-
-      if (processedImages.length === 0) {
-        // 纯文本：更新 static/.gitkeep 触发 commit
-        // console.log(`  [Contents] 纯文本 commit: ${commitMessage}`);
-        const r = await uploadFile(repo, 'static/.gitkeep', '', commitMessage, branch, access_token);
-        return Response.json(r, {status: 201});
-      } else {
-        // 单图：直接用 Contents API 上传图片文件
-        const img = processedImages[0];
-        const path = getImagePath(img.filename);
-        // console.log(`  [Contents] 单图 commit: ${path} msg: ${commitMessage}`);
-        const r = await uploadFile(repo, path, img.content, commitMessage, branch, access_token);
-        return Response.json(r, {status: 201});
-      }
+    if (processedImages.length === 0) {
+      // 纯文本：更新 static/.gitkeep 触发 commit
+      // 空文件的 blob SHA 是固定的，用于更新已有文件
+      const EMPTY_BLOB_SHA = 'e69de29bb2d1d6434b8b29ae775ad8c2e48c5391';
+      const r = await uploadFile(repo, 'static/.gitkeep', '', commitMessage, access_token, EMPTY_BLOB_SHA);
+      return Response.json(r, {status: 201});
+    } else if (processedImages.length === 1) {
+      // 单图：直接用 Contents API 上传图片文件
+      const img = processedImages[0];
+      const path = getImagePath(img.filename);
+      // console.log(`  [Contents] 单图 commit: ${path} msg: ${commitMessage}`);
+      const r = await uploadFile(repo, path, img.content, commitMessage, access_token);
+      return Response.json(r, {status: 201});
     }
+    
 
     // ============================================================
     // Git Data API 路径：多图走原有 blob → tree → commit 流程
@@ -325,10 +318,6 @@ async function handler(request, env) {
       }
       // console.log(`Created new tree: ${new_tree_sha}`);
     }
-
-    const commitMessage = processedImages.length > 0 && !message.endsWith(':')
-      ? message + ':'
-      : message;
 
     const r3_api = `${API_BASE}/git/commits`;
     const r3_req = {
