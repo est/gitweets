@@ -107,7 +107,7 @@ async function createBlobs(repo, images, token) {
   return results;
 }
 
-// 生成图片存储路径：static/YYYY/MMDD-HHmmss.ext
+// 生成图片存储路径：uploads/YYYY/MMDD-HHmmss.ext
 // index: 同一批图片的序号（从0开始），每张+1s避免秒内冲突
 function getImagePath(filename, index = 0) {
   const now = new Date();
@@ -119,7 +119,7 @@ function getImagePath(filename, index = 0) {
   const mi = String(now.getMinutes()).padStart(2, '0');
   const s = String(now.getSeconds()).padStart(2, '0');
   const ext = filename.includes('.') ? '.' + filename.split('.').pop() : '';
-  return `static/${y}/${mo}${d}-${h}${mi}${s}${ext}`;
+  return `uploads/${y}/${mo}${d}-${h}${mi}${s}${ext}`;
 }
 
 async function createTree(repo, baseTree, blobs, token) {
@@ -216,17 +216,19 @@ async function handler(request, env) {
     // console.log(`[NEW POST] client=${clientIP} country=${country} colo=${colo}`);
     // console.log(`  cookies: ${cookieNames.join(', ') || '(none)'} | access_token=${hasAccessToken} logged_in=${hasLoggedIn}`);
 
-    let message, repo, images = [];
+    let message, repo, images = [], clientCompress = true;
 
     if (content_type.includes('application/json')) {
       const body = await request.json();
       message = body.message;
       repo = req_url.searchParams.get('repo') || body.repo;
+      clientCompress = body.client_compress !== false && body.client_compress !== '0';
     } else if (content_type.includes('multipart/form-data')) {
       const formData = await request.formData();
       message = formData.get('message');
       repo = formData.get('repo');
       images = formData.getAll('images');
+      clientCompress = formData.get('client_compress') !== '0';
     } else {
       return Response.json({error: 'Unsupported content type'}, {status: 400});
     }
@@ -236,19 +238,24 @@ async function handler(request, env) {
       return Response.json({error: 'no message'}, {status: 400});
     }
 
-    if (images.length > 0) {
+    if (images.length > 9) {
+      return Response.json({ error: '最多选择 9 张图片' }, { status: 400 });
+    } else if (images.length > 0) {
       const validation = validateImages(images);
       if (!validation.valid) {
         return Response.json({ error: validation.error }, { status: 400 });
-      }
-      if (images.length > 9) {
-        return Response.json({ error: '最多选择 9 张图片' }, { status: 400 });
       }
     }
 
     let processedImages = [];
     if (images.length > 0) {
       processedImages = await processImages(images);
+      if (clientCompress) {
+        console.log('[compress] skip clientCompress=1')
+      } else {
+        const { compressImages } = await import('./_compress.mjs');
+        processedImages = await compressImages(processedImages, env);
+      }
       // console.log(`Processed ${processedImages.length} of ${images.length} images`);
     }
 

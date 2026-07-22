@@ -30,7 +30,7 @@ Post images: commit along with image files under `./static` path. The commit mes
 ### 本地命令行 Locally ：
 
 * 发文本 posting text: `make post "blah"`
-* 发图片 posting pics: `make post "some pics:" static/2023/1015-01.webp`
+* 发图片 posting pics: `make post-img "some pics:" uploads/2023/1015-01.webp`
 * 看 see history `make timeline`
 
 ### Via Github API
@@ -65,6 +65,7 @@ Post images: commit along with image files under `./static` path. The commit mes
 
 ### Done
 
+* [X] 引入服务端 avif 压缩
 * [X] 改名 CloudSettler
 * [X] 用 git notes 实现点赞和评论
 * [X] 处理内容里 网址链接 的问题

@@ -780,6 +780,21 @@
 			display: none;
 		}
 
+		.compress-option {
+			/*display: flex;*/
+			display: none;
+			align-items: center;
+			gap: 6px;
+			font-size: 13px;
+			color: #666;
+			margin-bottom: 8px;
+			user-select: none;
+		}
+
+		.compress-option input {
+			margin: 0;
+		}
+
 		/* 底部安全区 */
 		.safe-area-bottom {
 			height: env(safe-area-inset-bottom, 20px);
@@ -860,6 +875,9 @@
 				<div class="image-preview-grid" id="imagePreviewGrid">
 					<!-- 图片预览和 + 按钮将在这里动态添加 -->
 				</div>
+				<label class="compress-option">
+					<input type="checkbox" id="clientCompress" checked> 浏览器压图
+				</label>
 				<div class="image-count" id="imageCount"></div>
 			</div>
 			<div class="modal-footer">
@@ -1183,9 +1201,9 @@
 
 			const images = [];
 			files.forEach(f => {
-				const m = /\/static%2F(.+\.(webp|jpg|jpeg|png|gif|jxl|avif))$/i.exec(f.raw_url || f.filename || '');
+				const m = /\/(?:static|uploads)%2F(.+\.(webp|jpg|jpeg|png|gif|jxl|avif))$/i.exec(f.raw_url || f.filename || '');
 				if (m) {
-					images.push(`https://raw.githubusercontent.com/${REPO}/${sha}/static/${decodeURIComponent(m[1])}`);
+					images.push(`https://raw.githubusercontent.com/${REPO}/${sha}/uploads/${decodeURIComponent(m[1])}`);
 				}
 			});
 
@@ -1520,6 +1538,26 @@ The default and minimal required scope is public_repo
 
 		const imagePreviewGrid = document.getElementById('imagePreviewGrid');
 		const imageCount = document.getElementById('imageCount');
+		const clientCompressCheckbox = document.getElementById('clientCompress');
+		let compressModulePromise = null;
+
+		async function prepareImageFile(file) {
+			let processed = file;
+			if (clientCompressCheckbox.checked) {
+				console.log('[select] compressing', file.name || 'clipboard-image');
+				const {compressImage} = await import('/static/compress-image.js');
+				processed = await compressImage(file);
+				console.log('[select] done', processed.type, processed.size);
+			}
+
+			const url = URL.createObjectURL(processed);
+			let filename = generateFilename(file);
+			if (processed.type && processed.type !== file.type) {
+				const ext = processed.type.split('/')[1];
+				filename = filename.replace(/\.[^.]+$/, '.' + ext);
+			}
+			return { file: processed, url, filename };
+		}
 		const fileInput = document.createElement('input');
 		fileInput.type = 'file';
 		fileInput.accept = 'image/*';
@@ -1565,19 +1603,9 @@ The default and minimal required scope is public_repo
 					continue;
 				}
 
-				// 立即压缩
-				console.log('[select] compressing', file.name);
-				const compressed = await compressImage(file);
-				console.log('[select] done', compressed.type, compressed.size);
-
-				const url = URL.createObjectURL(compressed);
-				let filename = generateFilename(file);
-				// 更新扩展名以匹配实际格式
-				if (compressed.type && compressed.type !== file.type) {
-					const ext = compressed.type.split('/')[1];
-					filename = filename.replace(/\.[^.]+$/, '.' + ext);
-				}
-				selectedImages.push({ file: compressed, url, filename });
+				// 压缩（可选）
+				const item = await prepareImageFile(file);
+				selectedImages.push(item);
 				added++;
 			}
 
@@ -1622,17 +1650,8 @@ The default and minimal required scope is public_repo
 				const file = item.getAsFile();
 				if (!file) continue;
 
-				console.log('[paste] compressing', file.name || 'clipboard-image');
-				const compressed = await compressImage(file);
-				console.log('[paste] done', compressed.type, compressed.size);
-
-				const url = URL.createObjectURL(compressed);
-				let filename = generateFilename(file);
-				if (compressed.type && compressed.type !== file.type) {
-					const ext = compressed.type.split('/')[1];
-					filename = filename.replace(/\.[^.]+$/, '.' + ext);
-				}
-				selectedImages.push({ file: compressed, url, filename });
+				const item = await prepareImageFile(file);
+				selectedImages.push(item);
 				added++;
 			}
 
@@ -1709,82 +1728,6 @@ The default and minimal required scope is public_repo
 			}
 		});
 
-		// pica 实例（懒加载）
-		let picaInstance = null;
-
-		// 加载 pica 库（使用 unpkg 更稳定）
-		async function loadPica() {
-			if (!picaInstance) {
-				try {
-					const module = await import('https://unpkg.com/pica@8.0.0/dist/pica.min.js');
-					picaInstance = module.default ? module.default() : pica();
-				} catch (e) {
-					console.error('Failed to load pica:', e);
-					throw e;
-				}
-			}
-			return picaInstance;
-		}
-
-		// 压缩图片到目标大小（迭代压缩，确保接近目标）
-		async function compressImage(file, targetSize = 100 * 1024) {
-			// 即使文件很小，如果格式不是 avif/webp/jpeg，也需要转换
-			const smallAndTargetFormat = file.size <= targetSize && /^(image\/(jpeg|webp|avif))$/.test(file.type);
-			if (smallAndTargetFormat) return file;
-
-			const img = new Image();
-			img.loading = 'eager';
-			img.src = URL.createObjectURL(file);
-			try { await img.decode(); } catch (e) { 
-				console.log('[compress] img.decode() failed: ', e, 'format:', format, 'source', file.name, file.size)
-				return file; 
-			}
-
-			// 探测浏览器实际支持的格式（小 canvas 测试）
-			let format = 'image/jpeg';
-			const probe = document.createElement('canvas');
-			probe.width = probe.height = 2;
-			for (const type of ['image/avif', 'image/webp', 'image/jpeg']) {
-				const b = await new Promise(r => probe.toBlob(r, type, 0.5));
-				if (b && b.type === type) { format = type; break; }
-			}
-			console.log('[compress] format:', format, 'source:', file.name, file.size);
-
-			// 加载 pica
-			let usePica = true, p = null;
-			try { p = await loadPica(); } catch (e) { usePica = false; }
-
-			const compress = async (w, h) => {
-				const canvas = document.createElement('canvas');
-				canvas.width = w; canvas.height = h;
-				if (usePica && p) {
-					await p.resize(img, canvas, { quality: 3, alpha: true, unsharpAmount: 80, unsharpRadius: 0.6, unsharpThreshold: 2 });
-				} else {
-					canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-				}
-				return new Promise(resolve => canvas.toBlob(resolve, format, 0.85));
-			};
-
-			// 先试 800 宽（或原图如果更小）
-			let width = Math.min(800, img.width);
-			let height = Math.round(img.height * (width / img.width));
-
-			let blob = await compress(width, height);
-			console.log('[compress] round 1:', width, 'x', height, '->', blob?.size, 'bytes');
-
-			// 超过目标，根据实际压缩比精确缩放
-			if (blob && blob.size > targetSize) {
-				const scale = Math.sqrt(targetSize / blob.size);
-				width = Math.round(width * scale);
-				height = Math.round(height * scale);
-				blob = await compress(width, height);
-				console.log('[compress] round 2:', width, 'x', height, '->', blob?.size, 'bytes');
-			}
-
-			URL.revokeObjectURL(img.src);
-			return blob || file;
-		}
-
 		// Post button handler
 		btnPost.addEventListener('click', async function() {
 			const text = inputTweet.value.trim();
@@ -1806,8 +1749,8 @@ The default and minimal required scope is public_repo
 				const formData = new FormData();
 				formData.append('repo', REPO);
 				formData.append('message', text);
+				formData.append('client_compress', clientCompressCheckbox.checked ? '1' : '0');
 
-				// 图片已在选择时压缩
 				if (selectedImages.length > 0) {
 					for (let i = 0; i < selectedImages.length; i++) {
 						formData.append('images', selectedImages[i].file, selectedImages[i].filename);
@@ -1867,20 +1810,18 @@ The default and minimal required scope is public_repo
 
 			const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
 			if (files.length > 0) {
-				// 调用图片添加函数
-				files.forEach(file => {
-					if (selectedImages.length >= 9) return;
-					if (!file.type.startsWith('image/')) return;
-					if (file.size > 5 * 1024 * 1024) {
-						alert(`${file.name} 超过 5MB 限制`);
-						return;
+				(async () => {
+					for (const file of files) {
+						if (selectedImages.length >= 9) break;
+						if (file.size > MAX_FILE_SIZE) {
+							alert(`${file.name} 超过 5MB 限制`);
+							continue;
+						}
+						const item = await prepareImageFile(file);
+						selectedImages.push(item);
 					}
-
-					const url = URL.createObjectURL(file);
-					const filename = generateFilename(file);
-					selectedImages.push({ file, url, filename });
-				});
-				updateImagePreview();
+					updateImagePreview();
+				})();
 			}
 		});
 
