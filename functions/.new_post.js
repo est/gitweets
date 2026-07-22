@@ -107,21 +107,25 @@ async function createBlobs(repo, images, token) {
   return results;
 }
 
-function getImagePath(filename) {
+// 生成图片存储路径：static/YYYY/MMDD-HHmmss.ext
+// index: 同一批图片的序号（从0开始），每张+1s避免秒内冲突
+function getImagePath(filename, index = 0) {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const parts = filename.split('-');
-  const baseName = parts.length > 1 ? parts[1] : filename;
-  const ext = baseName.includes('.') ? '' : (filename.includes('.') ? '.' + filename.split('.').pop() : '');
-  return `static/${year}/${month}${day}-${baseName}${ext}`;
+  now.setSeconds(now.getSeconds() + index);
+  const y = now.getFullYear();
+  const mo = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const h = String(now.getHours()).padStart(2, '0');
+  const mi = String(now.getMinutes()).padStart(2, '0');
+  const s = String(now.getSeconds()).padStart(2, '0');
+  const ext = filename.includes('.') ? '.' + filename.split('.').pop() : '';
+  return `static/${y}/${mo}${d}-${h}${mi}${s}${ext}`;
 }
 
 async function createTree(repo, baseTree, blobs, token) {
   const API_BASE = `https://api.github.com/repos/${repo}`;
-  const tree = blobs.map(blob => ({
-    path: getImagePath(blob.filename),
+  const tree = blobs.map((blob, i) => ({
+    path: getImagePath(blob.filename, i),
     mode: '100644',
     type: 'blob',
     sha: blob.sha
