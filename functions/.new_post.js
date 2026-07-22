@@ -13,28 +13,29 @@ async function fetch_json(url, opts) {
   opts.headers['User-Agent'] = 'gitweets/2.0 (https://f.est.im/)';
   opts.headers['Accept'] = 'application/vnd.github+json'
   opts.headers['X-GitHub-Api-Version'] = '2026-03-10'
+  opts.headers['Content-Type'] = 'application/json'
 
 
-  // 记录请求头（脱敏 token）
-  const reqHeaders = {};
-  for (const [k, v] of Object.entries(opts.headers)) {
-    reqHeaders[k] = k.toLowerCase() === 'authorization'
-      ? `Bearer ${v.replace(/^Bearer\s+/, '').slice(0, 6)}...`
-      : v;
-  }
-  console.log(`>>> ${opts.method || 'GET'} ${url}`);
-  console.log('    req headers:', JSON.stringify(reqHeaders));
-  if (opts.body) console.log('    req body:', typeof opts.body === 'string' ? opts.body.slice(0, 500) : '(non-string)');
+  // // 记录请求/响应详情（调试用，生产环境可注释）
+  // const reqHeaders = {};
+  // for (const [k, v] of Object.entries(opts.headers)) {
+  //   reqHeaders[k] = k.toLowerCase() === 'authorization'
+  //     ? `Bearer ${v.replace(/^Bearer\s+/, '').slice(0, 6)}...`
+  //     : v;
+  // }
+  // console.log(`>>> ${opts.method || 'GET'} ${url}`);
+  // console.log('    req headers:', JSON.stringify(reqHeaders));
+  // if (opts.body) console.log('    req body:', typeof opts.body === 'string' ? opts.body.slice(0, 500) : '(non-string)');
 
   const req = await fetch(url, opts);
   const rsp = await req.text();
 
-  // 记录响应头
-  const rspHeaders = {};
-  req.headers.forEach((v, k) => { rspHeaders[k] = v; });
-  console.log(`<<< ${req.status} ${url}`);
-  console.log('    rsp headers:', JSON.stringify(rspHeaders));
-  console.log('    rsp body:', rsp.slice(0, 500));
+  // // 记录响应头（调试用，生产环境可注释）
+  // const rspHeaders = {};
+  // req.headers.forEach((v, k) => { rspHeaders[k] = v; });
+  // console.log(`<<< ${req.status} ${url}`);
+  // console.log('    rsp headers:', JSON.stringify(rspHeaders));
+  // console.log('    rsp body:', rsp.slice(0, 500));
 
   let json;
   try {
@@ -79,7 +80,6 @@ async function createBlob(repo, content, token) {
     const response = await fetch_json(`${API_BASE}/git/blobs`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify({
@@ -131,7 +131,6 @@ async function createTree(repo, baseTree, blobs, token) {
     const response = await fetch_json(`${API_BASE}/git/trees`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify({
@@ -166,7 +165,6 @@ async function uploadFile(repo, path, content, message, branch, token) {
   return fetch_json(`${API_BASE}/contents/${encodedPath}`, {
     method: 'PUT',
     headers: {
-      'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
     },
     body: JSON.stringify({
@@ -205,13 +203,13 @@ async function handler(request, env) {
     const country = request.headers.get('cf-ipcountry') || 'unknown';
     const colo = request.headers.get('cf-ray')?.split('.')?.[1] || 'unknown';
 
-    // 记录 cookie 名称（不记录值，安全）
-    const cookieStr = request.headers.get('cookie') || '';
-    const cookieNames = cookieStr.split(';').map(c => c.trim().split('=')[0]).filter(Boolean);
-    const hasAccessToken = cookieNames.includes('access_token');
-    const hasLoggedIn = cookieNames.includes('logged_in');
-    console.log(`[NEW POST] client=${clientIP} country=${country} colo=${colo}`);
-    console.log(`  cookies: ${cookieNames.join(', ') || '(none)'} | access_token=${hasAccessToken} logged_in=${hasLoggedIn}`);
+    // // 记录 cookie 名称（不记录值，安全）
+    // const cookieStr = request.headers.get('cookie') || '';
+    // const cookieNames = cookieStr.split(';').map(c => c.trim().split('=')[0]).filter(Boolean);
+    // const hasAccessToken = cookieNames.includes('access_token');
+    // const hasLoggedIn = cookieNames.includes('logged_in');
+    // console.log(`[NEW POST] client=${clientIP} country=${country} colo=${colo}`);
+    // console.log(`  cookies: ${cookieNames.join(', ') || '(none)'} | access_token=${hasAccessToken} logged_in=${hasLoggedIn}`);
 
     let message, repo, images = [];
 
@@ -246,16 +244,16 @@ async function handler(request, env) {
     let processedImages = [];
     if (images.length > 0) {
       processedImages = await processImages(images);
-      console.log(`Processed ${processedImages.length} of ${images.length} images`);
-      processedImages.forEach(img => {
-        console.log(`  ${img.filename}: ${img.content.byteLength} bytes`);
-      });
+      // console.log(`Processed ${processedImages.length} of ${images.length} images`);
     }
 
     const access_token = getCookie(request.headers.get('cookie'), 'access_token');
-    console.log(`  token: ${access_token ? access_token.slice(0, 6) + '...' + access_token.slice(-4) : '(EMPTY)'}`);
+    if (!access_token) {
+      return Response.json({ error: '未登录或 token 已过期，请重新登录' }, { status: 401 });
+    }
+    // console.log(`  token: ${access_token.slice(0, 6)}...${access_token.slice(-4)}`);
+    const API_BASE = `https://api.github.com/repos/${repo}`;
     const opts = {headers: {
-      "Content-Type": "application/json",
       "Authorization": `Bearer ${access_token}`
     }}
 
@@ -264,7 +262,7 @@ async function handler(request, env) {
     // 多图仍走下面的 Git Data API 路径做对比测试
     // ============================================================
     if (processedImages.length <= 1) {
-      console.log('[Contents API] 纯文本/单图，使用 Contents API 路径');
+      // console.log('[Contents API] 纯文本/单图，使用 Contents API 路径');
       const API_BASE = `https://api.github.com/repos/${repo}`;
 
       // 获取分支（公共 API 不需要 token）
@@ -280,14 +278,14 @@ async function handler(request, env) {
 
       if (processedImages.length === 0) {
         // 纯文本：更新 static/.gitkeep 触发 commit
-        console.log(`  [Contents] 纯文本 commit: ${commitMessage}`);
+        // console.log(`  [Contents] 纯文本 commit: ${commitMessage}`);
         const r = await uploadFile(repo, 'static/.gitkeep', '', commitMessage, branch, access_token);
         return Response.json(r, {status: 201});
       } else {
         // 单图：直接用 Contents API 上传图片文件
         const img = processedImages[0];
         const path = getImagePath(img.filename);
-        console.log(`  [Contents] 单图 commit: ${path} msg: ${commitMessage}`);
+        // console.log(`  [Contents] 单图 commit: ${path} msg: ${commitMessage}`);
         const r = await uploadFile(repo, path, img.content, commitMessage, branch, access_token);
         return Response.json(r, {status: 201});
       }
@@ -296,7 +294,7 @@ async function handler(request, env) {
     // ============================================================
     // Git Data API 路径：多图走原有 blob → tree → commit 流程
     // ============================================================
-    console.log('[Git Data API] 多图，使用 Git Data API 路径');
+    // console.log('[Git Data API] 多图，使用 Git Data API 路径');
 
     let blobResults = [];
     if (processedImages.length > 0) {
@@ -305,11 +303,10 @@ async function handler(request, env) {
       if (validBlobs.length !== blobResults.length) {
         return Response.json({ error: 'failed to create some blobs' }, {status: 400});
       }
-      console.log(`Created ${validBlobs.length} blobs`);
+      // console.log(`Created ${validBlobs.length} blobs`);
       blobResults = validBlobs;
     }
 
-    const API_BASE = `https://api.github.com/repos/${repo}`;
     const r1 = await fetch_json(`${API_BASE}/commits?per_page=1`, opts);
     const last_sha = r1?.[0]?.sha;
     const last_tree = r1?.[0]?.commit?.tree?.sha;
@@ -326,7 +323,7 @@ async function handler(request, env) {
       if (!new_tree_sha) {
         return Response.json({ error: 'failed to create tree', rsp: tree_rsp }, {status: 400});
       }
-      console.log(`Created new tree: ${new_tree_sha}`);
+      // console.log(`Created new tree: ${new_tree_sha}`);
     }
 
     const commitMessage = processedImages.length > 0 && !message.endsWith(':')
@@ -339,8 +336,7 @@ async function handler(request, env) {
       tree: new_tree_sha,
       parents: [last_sha]
     };
-    console.log(`[COMMIT] repo=${repo} branch=${branch}`);
-    console.log(`  tree=${new_tree_sha} parent=${last_sha} msg=${commitMessage}`);
+    // console.log(`[COMMIT] repo=${repo} branch=${branch} tree=${new_tree_sha} parent=${last_sha}`);
     const r3_opts = {
       method: 'POST',
       body: JSON.stringify(r3_req),
