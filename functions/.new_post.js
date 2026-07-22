@@ -8,16 +8,24 @@ function getCookie(cookie_str, name) {
 
 async function fetch_json(url, opts) {
   if (!opts || Object.keys(opts).length === 0) opts = {};
-  opts.signal ||= AbortSignal.timeout(5000);
+  opts.signal ||= AbortSignal.timeout(15000);
   opts.headers ||= {};
   opts.headers['User-Agent'] = 'gitweets/1.0 (cloudflare worker)';
   const req = await fetch(url, opts);
   const rsp = await req.text();
+  let json;
   try {
-    return JSON.parse(rsp);
+    json = JSON.parse(rsp);
   } catch(err) {
-    console.error(err, rsp);
+    console.error('JSON parse error:', err, rsp.slice(0, 200));
+    throw new Error(`Invalid response from GitHub: ${rsp.slice(0, 200)}`);
   }
+  if (!req.ok) {
+    const msg = json?.message || JSON.stringify(json);
+    console.error(`GitHub API ${req.status}: ${url} -> ${msg}`);
+    throw new Error(`GitHub API ${req.status}: ${msg}`);
+  }
+  return json;
 }
 
 // 图片处理函数
@@ -45,23 +53,23 @@ async function createBlob(repo, content, token) {
   }
   const base64 = btoa(binary);
 
-  const response = await fetch_json(`${API_BASE}/git/blobs`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({
-      content: base64,
-      encoding: 'base64'
-    })
-  });
-
-  if (!response || !response.sha) {
-    console.error('createBlob failed:', { response, contentLength: content.byteLength });
+  try {
+    const response = await fetch_json(`${API_BASE}/git/blobs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        content: base64,
+        encoding: 'base64'
+      })
+    });
+    return response?.sha || null;
+  } catch (e) {
+    console.error('createBlob error:', e.message);
+    return null;
   }
-
-  return response?.sha;
 }
 
 async function createBlobs(repo, images, token) {
@@ -82,7 +90,10 @@ function getImagePath(filename) {
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
-  return `static/${year}/${month}${day}-${filename.split('-')[1]}`;
+  const parts = filename.split('-');
+  const baseName = parts.length > 1 ? parts[1] : filename;
+  const ext = baseName.includes('.') ? '' : (filename.includes('.') ? '.' + filename.split('.').pop() : '');
+  return `static/${year}/${month}${day}-${baseName}${ext}`;
 }
 
 async function createTree(repo, baseTree, blobs, token) {
@@ -94,28 +105,23 @@ async function createTree(repo, baseTree, blobs, token) {
     sha: blob.sha
   }));
 
-  const response = await fetch_json(`${API_BASE}/git/trees`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({
-      base_tree: baseTree,
-      tree: tree
-    })
-  });
-
-  if (!response || !response.sha) {
-    console.error('createTree failed:', {
-      response,
-      baseTree,
-      treeCount: tree.length,
-      repo
+  try {
+    const response = await fetch_json(`${API_BASE}/git/trees`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        base_tree: baseTree,
+        tree: tree
+      })
     });
+    return response;
+  } catch (e) {
+    console.error('createTree error:', e.message);
+    return null;
   }
-
-  return response;
 }
 
 // 验证函数
@@ -203,11 +209,11 @@ async function handler(request, env) {
     const r1 = await fetch_json(`${API_BASE}/commits?per_page=1`, opts);
     const last_sha = r1?.[0]?.sha;
     const last_tree = r1?.[0]?.commit?.tree?.sha;
-    if (!last_sha || !last_tree) return Response.json({error: 'no last commit', rsp: r1}, {status: 400});
+    if (!last_sha || !last_tree) return Response.json({error: '无法获取最新提交', detail: r1?.message || JSON.stringify(r1)}, {status: 400});
 
     const r2 = await fetch_json(`${API_BASE}/commits/${last_sha}/branches-where-head`, opts);
     const branch = r2?.[0]?.name;
-    if (!branch) return Response.json({error: 'no branch', rsp: r2}, {status: 400});
+    if (!branch) return Response.json({error: '无法获取分支信息', detail: r2?.message || JSON.stringify(r2)}, {status: 400});
 
     let new_tree_sha = last_tree;
     if (blobResults.length > 0) {
@@ -253,7 +259,7 @@ async function handler(request, env) {
 
   } catch (e) {
     console.error('Handler error:', e);
-    return Response.json({ error: '服务器错误' }, { status: 500 });
+    return Response.json({ error: e.message || '服务器错误' }, { status: 500 });
   }
 }
 
