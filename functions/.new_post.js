@@ -10,7 +10,10 @@ async function fetch_json(url, opts) {
   if (!opts || Object.keys(opts).length === 0) opts = {};
   opts.signal ||= AbortSignal.timeout(15000);
   opts.headers ||= {};
-  opts.headers['User-Agent'] = 'gitweets/1.0 (cloudflare worker)';
+  opts.headers['User-Agent'] = 'gitweets/2.0 (https://f.est.im/)';
+  opts.headers['Accept'] = 'application/vnd.github+json'
+  opts.headers['X-GitHub-Api-Version'] = '2026-03-10'
+
 
   // 记录请求头（脱敏 token）
   const reqHeaders = {};
@@ -143,6 +146,37 @@ async function createTree(repo, baseTree, blobs, token) {
   }
 }
 
+// ArrayBuffer → base64（Contents API 用）
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+// 通过 Contents API 上传单个文件（支持 OAuth token）
+async function uploadFile(repo, path, content, message, branch, token) {
+  const API_BASE = `https://api.github.com/repos/${repo}`;
+  const base64 = typeof content === 'string' ? btoa(content) : arrayBufferToBase64(content);
+  const encodedPath = path.split('/').map(s => encodeURIComponent(s)).join('/');
+
+  return fetch_json(`${API_BASE}/contents/${encodedPath}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      message,
+      content: base64,
+      branch
+    })
+  });
+}
+
 // 验证函数
 function validateImage(image) {
   if (!image.type.startsWith('image/')) {
@@ -224,6 +258,45 @@ async function handler(request, env) {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${access_token}`
     }}
+
+    // ============================================================
+    // Contents API 路径：纯文本或单图，走 PUT /contents（支持 OAuth）
+    // 多图仍走下面的 Git Data API 路径做对比测试
+    // ============================================================
+    if (processedImages.length <= 1) {
+      console.log('[Contents API] 纯文本/单图，使用 Contents API 路径');
+      const API_BASE = `https://api.github.com/repos/${repo}`;
+
+      // 获取分支（公共 API 不需要 token）
+      const r1 = await fetch_json(`${API_BASE}/commits?per_page=1`);
+      const last_sha = r1?.[0]?.sha;
+      if (!last_sha) return Response.json({error: '无法获取最新提交', detail: r1?.message}, {status: 400});
+      const r2 = await fetch_json(`${API_BASE}/commits/${last_sha}/branches-where-head`);
+      const branch = r2?.[0]?.name;
+      if (!branch) return Response.json({error: '无法获取分支信息', detail: r2?.message}, {status: 400});
+
+      const commitMessage = processedImages.length > 0 && !message.endsWith(':')
+        ? message + ':' : message;
+
+      if (processedImages.length === 0) {
+        // 纯文本：更新 static/.gitkeep 触发 commit
+        console.log(`  [Contents] 纯文本 commit: ${commitMessage}`);
+        const r = await uploadFile(repo, 'static/.gitkeep', '', commitMessage, branch, access_token);
+        return Response.json(r, {status: 201});
+      } else {
+        // 单图：直接用 Contents API 上传图片文件
+        const img = processedImages[0];
+        const path = getImagePath(img.filename);
+        console.log(`  [Contents] 单图 commit: ${path} msg: ${commitMessage}`);
+        const r = await uploadFile(repo, path, img.content, commitMessage, branch, access_token);
+        return Response.json(r, {status: 201});
+      }
+    }
+
+    // ============================================================
+    // Git Data API 路径：多图走原有 blob → tree → commit 流程
+    // ============================================================
+    console.log('[Git Data API] 多图，使用 Git Data API 路径');
 
     let blobResults = [];
     if (processedImages.length > 0) {
