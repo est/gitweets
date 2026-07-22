@@ -11,8 +11,28 @@ async function fetch_json(url, opts) {
   opts.signal ||= AbortSignal.timeout(15000);
   opts.headers ||= {};
   opts.headers['User-Agent'] = 'gitweets/1.0 (cloudflare worker)';
+
+  // 记录请求头（脱敏 token）
+  const reqHeaders = {};
+  for (const [k, v] of Object.entries(opts.headers)) {
+    reqHeaders[k] = k.toLowerCase() === 'authorization'
+      ? `Bearer ${v.replace(/^Bearer\s+/, '').slice(0, 6)}...`
+      : v;
+  }
+  console.log(`>>> ${opts.method || 'GET'} ${url}`);
+  console.log('    req headers:', JSON.stringify(reqHeaders));
+  if (opts.body) console.log('    req body:', typeof opts.body === 'string' ? opts.body.slice(0, 500) : '(non-string)');
+
   const req = await fetch(url, opts);
   const rsp = await req.text();
+
+  // 记录响应头
+  const rspHeaders = {};
+  req.headers.forEach((v, k) => { rspHeaders[k] = v; });
+  console.log(`<<< ${req.status} ${url}`);
+  console.log('    rsp headers:', JSON.stringify(rspHeaders));
+  console.log('    rsp body:', rsp.slice(0, 500));
+
   let json;
   try {
     json = JSON.parse(rsp);
@@ -22,7 +42,6 @@ async function fetch_json(url, opts) {
   }
   if (!req.ok) {
     const msg = json?.message || JSON.stringify(json);
-    console.error(`GitHub API ${req.status}: ${url} -> ${msg}`);
     throw new Error(`GitHub API ${req.status}: ${msg}`);
   }
   return json;
@@ -148,6 +167,17 @@ async function handler(request, env) {
   try {
     const req_url = new URL(request.url);
     const content_type = request.headers.get('content-type') || '';
+    const clientIP = request.headers.get('cf-connecting-ip') || request.headers.get('x-real-ip') || 'unknown';
+    const country = request.headers.get('cf-ipcountry') || 'unknown';
+    const colo = request.headers.get('cf-ray')?.split('.')?.[1] || 'unknown';
+
+    // 记录 cookie 名称（不记录值，安全）
+    const cookieStr = request.headers.get('cookie') || '';
+    const cookieNames = cookieStr.split(';').map(c => c.trim().split('=')[0]).filter(Boolean);
+    const hasAccessToken = cookieNames.includes('access_token');
+    const hasLoggedIn = cookieNames.includes('logged_in');
+    console.log(`[NEW POST] client=${clientIP} country=${country} colo=${colo}`);
+    console.log(`  cookies: ${cookieNames.join(', ') || '(none)'} | access_token=${hasAccessToken} logged_in=${hasLoggedIn}`);
 
     let message, repo, images = [];
 
@@ -189,10 +219,11 @@ async function handler(request, env) {
     }
 
     const access_token = getCookie(request.headers.get('cookie'), 'access_token');
+    console.log(`  token: ${access_token ? access_token.slice(0, 6) + '...' + access_token.slice(-4) : '(EMPTY)'}`);
     const opts = {headers: {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${access_token}`
-    }, credentials: 'include'}
+    }}
 
     let blobResults = [];
     if (processedImages.length > 0) {
@@ -235,8 +266,10 @@ async function handler(request, env) {
       tree: new_tree_sha,
       parents: [last_sha]
     };
+    console.log(`[COMMIT] repo=${repo} branch=${branch}`);
+    console.log(`  tree=${new_tree_sha} parent=${last_sha} msg=${commitMessage}`);
     const r3_opts = {
-      method: 'post',
+      method: 'POST',
       body: JSON.stringify(r3_req),
       ...opts
     };
