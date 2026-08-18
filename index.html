@@ -1817,8 +1817,8 @@ The default and minimal required scope is public_repo
 							alert(`${file.name} 超过 5MB 限制`);
 							continue;
 						}
-						const item = await prepareImageFile(file);
-						selectedImages.push(item);
+const prepared = await prepareImageFile(file);
+				selectedImages.push(prepared);
 					}
 					updateImagePreview();
 				})();
