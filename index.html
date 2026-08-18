@@ -1112,7 +1112,7 @@
 			commits.forEach(item => {
 				postsList.insertAdjacentHTML('beforeend', renderPost(item));
 				// Check if message ends with : (indicator for images)
-				if (!item.files && /(：|:)\s*$/.test(item.commit.message.trim())) {
+				if (/(：|:)\s*$/.test(item.commit.message.trim())) {
 					mediaIds.push(item.sha);
 				}
 			});
@@ -1120,9 +1120,15 @@
 			// Load images for posts that need them
 			mediaIds.forEach(async function(id) {
 				try {
-					const resp = await fetch(`${API_BASE}/commits/${id}`);
-					const data = await resp.json();
-					appendImages(id, data.files);
+					const item = commits.find(c => c.sha === id);
+					const files = item && item.files ? item.files : null;
+					if (files) {
+						appendImages(id, files);
+					} else {
+						const resp = await fetch(`${API_BASE}/commits/${id}`);
+						const data = await resp.json();
+						appendImages(id, data.files);
+					}
 				} catch (e) {
 					console.error('Failed to load images for commit', id, e);
 				}
@@ -1521,7 +1527,11 @@ The default and minimal required scope is public_repo
 			composeModal.style.display = 'block';
 		}
 
-		function closeModal() {
+		function closeModal(skipConfirm) {
+			const hasContent = inputTweet.value.trim() !== '' || selectedImages.length > 0;
+			if (!skipConfirm && hasContent && !confirm('内容尚未发布，确定关闭吗？')) {
+				return;
+			}
 			inputTweet.value = '';
 			inputTweet.placeholder = "What's up?";
 			composeModal.style.display = 'none';
@@ -1769,7 +1779,7 @@ The default and minimal required scope is public_repo
 					throw new Error(result.error);
 				}
 
-				closeModal();
+				closeModal(true);
 				// 清理预览
 				selectedImages.forEach(img => URL.revokeObjectURL(img.url));
 				selectedImages = [];
