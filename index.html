@@ -62,14 +62,16 @@
 			justify-content: center;
 		}
 
-		.nav-bar .back-btn svg {
+		.nav-bar .back-btn svg,
+		.nav-bar .post-btn svg {
 			width: 24px;
 			height: 24px;
 			fill: white;
 			transition: fill 0.3s;
 		}
 
-		.nav-bar.scrolled .back-btn svg {
+		.nav-bar.scrolled .back-btn svg,
+		.nav-bar.scrolled .post-btn svg {
 			fill: #191919;
 		}
 
@@ -96,17 +98,6 @@
 			display: flex;
 			align-items: center;
 			justify-content: center;
-		}
-
-		.nav-bar .post-btn svg {
-			width: 24px;
-			height: 24px;
-			fill: white;
-			transition: fill 0.3s;
-		}
-
-		.nav-bar.scrolled .post-btn svg {
-			fill: #191919;
 		}
 
 		/* 封面区域 */
@@ -714,11 +705,10 @@
 			display: none;
 		}
 
-		.image-preview-grid.cols-1 { grid-template-columns: repeat(3, 1fr); max-width: 60%; }
-		.image-preview-grid.cols-2 { grid-template-columns: repeat(3, 1fr); }
 		.image-preview-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
-		.image-preview-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
-		.image-preview-grid.cols-6 { grid-template-columns: repeat(4, 1fr); }
+		.image-preview-grid.cols-1 { grid-template-columns: repeat(3, 1fr); max-width: 60%; }
+		.image-preview-grid.cols-4,
+		.image-preview-grid.cols-6,
 		.image-preview-grid.cols-9 { grid-template-columns: repeat(4, 1fr); }
 
 		.add-image-btn {
@@ -888,311 +878,177 @@
 	</div>
 
 	<script>
-		// safe html
-		const sh = s => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
-		const linkify = s => s.replace(/(https?:\/\/[^\s<>"']+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>')
+		const sh = s => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+		const linkify = s => s.replace(/(https?:\/\/[^\s<>"']+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
 
-		// 长文折叠：>250 字节在最近换行处截断
 		const foldPost = (s, limit = 250) => {
 			if (new TextEncoder().encode(s).length <= limit) return linkify(sh(s));
 			const cut = s.lastIndexOf('\n', limit);
 			const head = s.slice(0, cut > 0 ? cut : limit);
 			const tail = s.slice(cut > 0 ? cut + 1 : limit);
 			return `${linkify(sh(head))} <details class="post-fold"><summary>...</summary>${linkify(sh(tail))}</details>`;
+		};
+
+		function formatDate(d) {
+			return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 		}
+		const isSameDay = (a, b) => a.toDateString() === b.toDateString();
 
-		// show date
-		const sd = d => new Date(d.getTime() - d.getTimezoneOffset()*60_000).toISOString().replace('T', ' ').split('.')[0]
-
-		// format relative time
-		function timeAgo(date) {
-			const now = new Date();
-			const diff = now - date;
-			const minutes = Math.floor(diff / 60000);
-			const hours = Math.floor(diff / 3600000);
-			const days = Math.floor(diff / 86400000);
-
-			if (minutes < 1) return '刚刚';
-			if (minutes < 60) return minutes + '分钟前';
-			if (hours < 24) return hours + '小时前';
-			if (days < 7) return days + '天前';
-			if (days < 30) return Math.floor(days / 7) + '周前';
-			if (days < 365) return Math.floor(days / 30) + '个月前';
-			return Math.floor(days / 365) + '年前';
-		}
-
-		// format date for display
-		function formatDate(date) {
-			const y = date.getFullYear();
-			const m = String(date.getMonth() + 1).padStart(2, '0');
-			const d = String(date.getDate()).padStart(2, '0');
-			return `${y}-${m}-${d}`;
-		}
-
-		// check if two dates are the same day
-		function isSameDay(d1, d2) {
-			return d1.getFullYear() === d2.getFullYear() &&
-				d1.getMonth() === d2.getMonth() &&
-				d1.getDate() === d2.getDate();
-		}
-
-		// Global state
-		let REPO = '';
-		let API_BASE = '';
-		let currentPage = 0; // 0 = first page
-		let loadedBuffer = []; // commits loaded from API but not yet displayed
-		let displayedPages = []; // array of {commits: [], startDate, endDate}
-		let isLoading = false;
-		let repoOwnerInfo = null;
-
-		// Load repo owner info for cover
-		async function loadOwnerInfo() {
-			try {
-				const resp = await fetch(API_BASE);
-				const data = await resp.json();
-				repoOwnerInfo = data.owner;
-				document.getElementById('coverUsername').textContent = repoOwnerInfo.login;
-				document.getElementById('coverAvatar').src = repoOwnerInfo.avatar_url;
-				document.getElementById('navTitle').textContent = REPO.split('/')[1] || 'gitweets';
-			} catch (e) {
-				console.error('Failed to load owner info:', e);
-				document.getElementById('coverUsername').textContent = REPO;
-			}
-		}
-
-		// Parse URL to get repo info
-		function parseUrl() {
-			// Try to get from path first
-			const m = /^\/(\w+)(?:\/([0-9a-fA-F]{7,40}))?$/.exec(location.pathname);
-			if (m) {
-				// This is a user/commit view, use default repo
-				REPO = 'est/gitweets';
-			} else {
-				// Check URL params
-				const urlParams = new URLSearchParams(window.location.search);
-				const repo = urlParams.get('repo');
-				if (repo) {
-					REPO = repo;
-				} else {
-					REPO = 'est/gitweets';
-				}
-			}
-			API_BASE = `https://api.github.com/repos/${REPO}`;
-		}
-
-		// Fetch commits from API
-		async function fetchCommits(untilDate) {
-			const params = { per_page: 100 };
-			if (untilDate) {
-				params.until = untilDate.toISOString();
-			}
-
-			const m = /^\/(\w+)(?:\/([0-9a-fA-F]{7,40}))?$/.exec(location.pathname);
-			if (m && m[2]) {
-				// Single commit view
-				const data = await (await fetch(`${API_BASE}/commits/${m[2]}`)).json();
-				return [data];
-			}
-			if (m && m[1]) {
-				params.author = m[1];
-			}
-
-			const resp = await fetch(`${API_BASE}/commits?${new URLSearchParams(params).toString()}`);
-			return await resp.json();
-		}
-
-// Find date boundary in commits array
-		// Requires at least 20 items, then finds the first date change
-		function findDateBoundary(commits) {
-			if (commits.length <= 1) return commits.length;
-
-			const firstDate = new Date(commits[0].commit.author.date);
-			for (let i = 1; i < commits.length; i++) {
-				const currDate = new Date(commits[i].commit.author.date);
-				if (!isSameDay(firstDate, currDate) && i >= 20) {
-					return i;
-				}
-			}
-			return commits.length;
-		}
-
-		// Load a page of commits
-		async function loadPage(pageIndex) {
-			if (isLoading) return;
-			isLoading = true;
-
-			const postsList = document.getElementById('postsList');
-			const loadingState = document.getElementById('loadingState');
-			loadingState.style.display = 'block';
-			postsList.querySelectorAll(':scope .post-item').forEach(el => el.remove());
-
-			try {
-				// Going backward - use cached pages
-				if (pageIndex < displayedPages.length && pageIndex >= 0) {
-					const page = displayedPages[pageIndex];
-					await renderPage(page.commits);
-					updatePagination(pageIndex);
-					loadingState.style.display = 'none';
-					return;
-				}
-
-				// Going forward - need to load new data
-				if (pageIndex === 0 && displayedPages.length === 0) {
-					// First load
-					const commits = await fetchCommits(null);
-					if (!commits || commits.length === 0) {
-						loadingState.innerHTML = '<div>没有数据</div>';
-						return;
-					}
-					await processAndDisplay(commits, pageIndex);
-				} else if (pageIndex === displayedPages.length) {
-					// Next page - load from buffer or fetch
-					if (loadedBuffer.length === 0) {
-						// Need to fetch more
-						const lastPage = displayedPages[displayedPages.length - 1];
-						const lastCommit = lastPage.commits[lastPage.commits.length - 1];
-						const untilDate = new Date(lastCommit.commit.author.date);
-						// Set to start of that day to include all commits from that day
-						untilDate.setHours(0, 0, 0, 0);
-
-						const commits = await fetchCommits(untilDate);
-						if (!commits || commits.length === 0) {
-							loadingState.innerHTML = '<div>没有更多数据了</div>';
-							return;
-						}
-						// Filter out already displayed commits
-						const lastDisplayedSha = lastCommit.sha;
-						const lastIdx = commits.findIndex(c => c.sha === lastDisplayedSha);
-						if (lastIdx >= 0) {
-							loadedBuffer = commits.slice(lastIdx + 1);
-						} else {
-							loadedBuffer = commits;
-						}
-					}
-
-					if (loadedBuffer.length === 0) {
-						loadingState.innerHTML = '<div>没有更多数据了</div>';
-						return;
-					}
-
-					await processAndDisplay(loadedBuffer, pageIndex);
-				}
-
-				loadingState.style.display = 'none';
-			} catch (e) {
-				console.error('Failed to load page:', e);
-				loadingState.innerHTML = '<div>加载失败，请重试</div>';
-			} finally {
-				isLoading = false;
-			}
-		}
-
-		// Process buffer and display a page
-		async function processAndDisplay(commits, pageIndex) {
-			const boundary = findDateBoundary(commits);
-			const pageCommits = commits.slice(0, boundary);
-			loadedBuffer = commits.slice(boundary);
-
-			displayedPages.push({
-				commits: pageCommits,
-				startDate: new Date(pageCommits[pageCommits.length - 1].commit.author.date),
-				endDate: new Date(pageCommits[0].commit.author.date)
-			});
-
-			await renderPage(pageCommits);
-			updatePagination(pageIndex);
-		}
-
-		// Render a page of commits
-		async function renderPage(commits) {
-			const postsList = document.getElementById('postsList');
-
-			// First, render all posts without images
-			const mediaIds = [];
-			commits.forEach(item => {
-				postsList.insertAdjacentHTML('beforeend', renderPost(item));
-				// Check if message ends with : (indicator for images)
-				if (/(：|:)\s*$/.test(item.commit.message.trim())) {
-					mediaIds.push(item.sha);
-				}
-			});
-
-			// Load images for posts that need them
-			mediaIds.forEach(async function(id) {
-				try {
-					const item = commits.find(c => c.sha === id);
-					const files = item && item.files ? item.files : null;
-					if (files) {
-						appendImages(id, files);
-					} else {
-						const resp = await fetch(`${API_BASE}/commits/${id}`);
-						const data = await resp.json();
-						appendImages(id, data.files);
-					}
-				} catch (e) {
-					console.error('Failed to load images for commit', id, e);
-				}
-			});
-
-			// Load interactions (comments) for all commits
-			const shas = commits.map(c => c.sha);
-			loadInteractions(shas);
-		}
-
-		// Format unix timestamp
-		function formatTime(ts) {
-			if (!ts) return '';
-			const d = new Date(ts * 1000);
-			const now = new Date();
-			const diff = now - d;
+		function relativeTime(input) {
+			const d = typeof input === 'number' ? new Date(input * 1000) : input;
+			const diff = Date.now() - d;
 			if (diff < 60000) return '刚刚';
 			if (diff < 3600000) return Math.floor(diff / 60000) + '分钟前';
 			if (diff < 86400000) return Math.floor(diff / 3600000) + '小时前';
 			if (diff < 604800000) return Math.floor(diff / 86400000) + '天前';
-			return `${d.getMonth() + 1}月${d.getDate()}日`;
+			if (typeof input === 'number') return `${d.getMonth() + 1}月${d.getDate()}日`;
+			if (diff < 2592000000) return Math.floor(diff / 604800000) + '周前';
+			if (diff < 31536000000) return Math.floor(diff / 2592000000) + '个月前';
+			return Math.floor(diff / 31536000000) + '年前';
+		}
+		const timeAgo = relativeTime;
+		const formatTime = relativeTime;
+
+		let REPO = '';
+		let API_BASE = '';
+		let currentPage = 0;
+		let loadedBuffer = [];
+		let displayedPages = [];
+		let isLoading = false;
+		let repoOwnerInfo = null;
+
+		const PATH_RE = /^\/(\w+)(?:\/([0-9a-fA-F]{7,40}))?$/;
+		const pathMatch = () => PATH_RE.exec(location.pathname);
+		const $ = id => document.getElementById(id);
+		const composeModal = $('composeModal');
+		const navBar = $('navBar');
+		const overlay = $('overlay');
+		const imagePreview = $('imagePreview');
+		const previewImage = $('previewImage');
+		const inputTweet = $('inputTweet');
+		const btnPost = $('btnPost');
+
+		function parseUrl() {
+			const m = pathMatch();
+			if (m) REPO = 'est/gitweets';
+			else REPO = new URLSearchParams(location.search).get('repo') || 'est/gitweets';
+			API_BASE = `https://api.github.com/repos/${REPO}`;
 		}
 
-		// 解析 NDJSON → { comments: [...] }
-		function parseNote(ndjson) {
-			const comments = [];
-			if (!ndjson) return { comments };
-			for (const line of ndjson.split('\n')) {
-				if (!line.trim()) continue;
-				try {
-					const e = JSON.parse(line);
-					if (e.type === 'comment') comments.push(e);
-					else if (e.type === 'delete_comment') {
-						const idx = comments.findIndex(c => c.id === e.target);
-						if (idx >= 0) comments.splice(idx, 1);
-					}
-				} catch {}
+		async function loadOwnerInfo() {
+			try {
+				const { owner } = await (await fetch(API_BASE)).json();
+				repoOwnerInfo = owner;
+				$('coverUsername').textContent = owner.login;
+				$('coverAvatar').src = owner.avatar_url;
+				$('navTitle').textContent = REPO.split('/')[1] || 'gitweets';
+			} catch (e) {
+				console.error('Failed to load owner info:', e);
+				$('coverUsername').textContent = REPO;
 			}
-			return { comments };
 		}
 
-		// GraphQL fallback 查询
-		const NOTES_GQL = 'query($o:String!,$r:String!){repository(owner:$o,name:$r){ref(qualifiedName:"refs/notes/commits"){target{...on Commit{tree{entries{name object{...on Blob{text}}}}}}}}}';
+		async function fetchCommits(untilDate) {
+			const m = pathMatch();
+			if (m?.[2]) return [(await (await fetch(`${API_BASE}/commits/${m[2]}`)).json())];
+			const params = new URLSearchParams({ per_page: 100 });
+			if (untilDate) params.set('until', untilDate.toISOString());
+			if (m?.[1]) params.set('author', m[1]);
+			return (await fetch(`${API_BASE}/commits?${params}`)).json();
+		}
 
-		// 批量加载评论
+		function findDateBoundary(commits) {
+			if (commits.length <= 1) return commits.length;
+			const first = new Date(commits[0].commit.author.date);
+			for (let i = 20; i < commits.length; i++) {
+				if (!isSameDay(first, new Date(commits[i].commit.author.date))) return i;
+			}
+			return commits.length;
+		}
+
+		async function loadPage(pageIndex) {
+			if (isLoading) return;
+			isLoading = true;
+			const postsList = $('postsList');
+			const loadingState = $('loadingState');
+			loadingState.style.display = 'block';
+			postsList.querySelectorAll(':scope .post-item').forEach(el => el.remove());
+			try {
+				if (pageIndex >= 0 && pageIndex < displayedPages.length) {
+					await renderPage(displayedPages[pageIndex].commits);
+					updatePagination(pageIndex);
+					loadingState.style.display = 'none';
+					return;
+				}
+				if (pageIndex === 0 && displayedPages.length === 0) {
+					const commits = await fetchCommits(null);
+					if (!commits?.length) { loadingState.innerHTML = '<div>没有数据</div>'; return; }
+					await processAndDisplay(commits, pageIndex);
+				} else if (pageIndex === displayedPages.length) {
+					if (loadedBuffer.length === 0) {
+						const last = displayedPages[displayedPages.length - 1].commits.at(-1);
+						const untilDate = new Date(last.commit.author.date);
+						untilDate.setHours(0, 0, 0, 0);
+						const commits = await fetchCommits(untilDate);
+						if (!commits?.length) { loadingState.innerHTML = '<div>没有更多数据了</div>'; return; }
+						const idx = commits.findIndex(c => c.sha === last.sha);
+						loadedBuffer = idx >= 0 ? commits.slice(idx + 1) : commits;
+					}
+					if (loadedBuffer.length === 0) { loadingState.innerHTML = '<div>没有更多数据了</div>'; return; }
+					await processAndDisplay(loadedBuffer, pageIndex);
+				}
+				loadingState.style.display = 'none';
+			} catch (e) {
+				console.error('Failed to load page:', e);
+				loadingState.innerHTML = '<div>加载失败，请重试</div>';
+			} finally { isLoading = false; }
+		}
+
+		async function processAndDisplay(commits, pageIndex) {
+			const boundary = findDateBoundary(commits);
+			const pageCommits = commits.slice(0, boundary);
+			loadedBuffer = commits.slice(boundary);
+			displayedPages.push({
+				commits: pageCommits,
+				startDate: new Date(pageCommits.at(-1).commit.author.date),
+				endDate: new Date(pageCommits[0].commit.author.date)
+			});
+			await renderPage(pageCommits);
+			updatePagination(pageIndex);
+		}
+
+		async function renderPage(commits) {
+			const postsList = $('postsList');
+			const mediaIds = [];
+			for (const item of commits) {
+				postsList.insertAdjacentHTML('beforeend', renderPost(item));
+				if (/(：|:)\s*$/.test(item.commit.message.trim())) mediaIds.push(item.sha);
+			}
+			mediaIds.forEach(async id => {
+				try {
+					const item = commits.find(c => c.sha === id);
+					if (item?.files) appendImages(id, item.files);
+					else appendImages(id, (await (await fetch(`${API_BASE}/commits/${id}`)).json()).files);
+				} catch (e) { console.error('Failed to load images for commit', id, e); }
+			});
+			loadInteractions(commits.map(c => c.sha));
+		}
+
 		async function loadInteractions(commitShas) {
 			if (!commitShas.length) return;
-
-			// 1. 先试 CF Worker
 			try {
 				const resp = await fetch(`/.cmts?repo=${encodeURIComponent(REPO)}&shas=${commitShas.join(',')}`);
-				if (resp.ok) {
-					const data = await resp.json();
-					for (const [sha, d] of Object.entries(data)) {
-						if (d.comments?.length) renderInteractionComments(sha, d.comments);
-					}
-					return;
+				if (!resp.ok) return;
+				const data = await resp.json();
+				for (const [sha, d] of Object.entries(data)) {
+					if (d.comments?.length) renderInteractionComments(sha, d.comments);
 				}
 			} catch {}
 		}
 
 		// 渲染评论列表
 		function renderInteractionComments(sha, comments) {
-			const postEl = document.getElementById(`post-${sha}`);
+			const postEl = $(`post-${sha}`);
 			if (!postEl) return;
 			const section = postEl.querySelector('.like-comment-section');
 			const commentsSection = section.querySelector('.comments-section');
@@ -1201,50 +1057,28 @@
 			section.style.display = 'block';
 		}
 
-		// Append images to a post
 		function appendImages(sha, files) {
-			if (!files) return;
-
+			if (!files?.length) return;
 			const images = [];
-			files.forEach(f => {
+			for (const f of files) {
 				const m = /\/(?:static|uploads)%2F(.+\.(webp|jpg|jpeg|png|gif|jxl|avif))$/i.exec(f.raw_url || f.filename || '');
-				if (m) {
-					images.push(`https://raw.githubusercontent.com/${REPO}/${sha}/uploads/${decodeURIComponent(m[1])}`);
-				}
-			});
-
-			if (images.length === 0) return;
-
-			const postEl = document.getElementById(`post-${sha}`);
-			if (!postEl) return;
-
-			const count = Math.min(images.length, 9);
-			const gridClass = `image-grid-${count}`;
-			let gridItems = '';
-			for (let i = 0; i < count; i++) {
-				gridItems += `
-					<div class="image-item" data-src="${images[i]}">
-						<img src="${images[i]}" alt="图片" loading="lazy">
-					</div>
-				`;
+				if (m) images.push(`https://raw.githubusercontent.com/${REPO}/${sha}/uploads/${decodeURIComponent(m[1])}`);
 			}
-
-			const imagesHtml = `<div class="post-images"><div class="image-grid ${gridClass}">${gridItems}</div></div>`;
-
-			// Insert after content, before location
-			const contentEl = postEl.querySelector('.post-content');
-			if (contentEl) {
-				contentEl.insertAdjacentHTML('afterend', imagesHtml);
-			}
+			if (!images.length) return;
+			const postEl = $(`post-${sha}`);
+			const contentEl = postEl?.querySelector('.post-content');
+			if (!postEl || !contentEl) return;
+			const gridItems = images.slice(0, 9).map(src => `<div class="image-item" data-src="${src}"><img src="${src}" alt="图片" loading="lazy"></div>`).join('');
+			contentEl.insertAdjacentHTML('afterend', `<div class="post-images"><div class="image-grid image-grid-${Math.min(images.length, 9)}">${gridItems}</div></div>`);
 		}
 
 		// Update pagination controls
 		function updatePagination(pageIndex) {
 			currentPage = pageIndex;
-			const indicator = document.getElementById('paginationIndicator');
-			const pageInfo = document.getElementById('pageInfo');
-			const btnPrev = document.getElementById('btnPrev');
-			const btnNext = document.getElementById('btnNext');
+			const indicator = $('paginationIndicator');
+			const pageInfo = $('pageInfo');
+			const btnPrev = $('btnPrev');
+			const btnNext = $('btnNext');
 
 			indicator.style.display = 'flex';
 
@@ -1260,44 +1094,20 @@
 			btnNext.disabled = false;
 		}
 
-		// Render a single post
 		function renderPost(item) {
+			const date = new Date(item.commit.author.date);
 			const authorName = item.commit.author.name;
 			const authorAvatar = item.author?.avatar_url || '';
 			const authorSlug = item.author?.login || '';
-			const message = item.commit.message;
-			const date = new Date(item.commit.author.date);
-			const isVerified = item.commit.verification?.verified;
-
-			// Location stub (for future use)
-			const locationHtml = ''; // placeholder for future
-
-			// 评论区
-			const commentHtml = `
-				<div class="like-comment-section">
-					<div class="comments-section" style="display:none;"></div>
-				</div>
-			`;
-
 			return `
 				<div class="post-item" id="post-${item.sha}" data-sha="${item.sha}">
 					<div class="post-header">
-						<div class="post-avatar">
-							<a href="/">
-								<img src="${encodeURI(authorAvatar)}" alt="头像">
-							</a>
-						</div>
-						<div class="post-meta">
-							<div class="post-username">
-								<a href="/${encodeURI(authorSlug)}" style="color: inherit; text-decoration: none;">${sh(authorName)}</a>
-								${isVerified ? ' <span style="color:blue;">✓</span>' : ''}
-							</div>
-						</div>
+						<div class="post-avatar"><a href="/"><img src="${encodeURI(authorAvatar)}" alt="头像"></a></div>
+						<div class="post-meta"><div class="post-username"><a href="/${encodeURI(authorSlug)}" style="color:inherit;text-decoration:none">${sh(authorName)}</a>${item.commit.verification?.verified ? ' <span style="color:blue">✓</span>' : ''}</div></div>
 					</div>
-					<div class="post-content">${foldPost(message)}</div>
-					${locationHtml}
+					<div class="post-content">${foldPost(item.commit.message)}</div>
 					<div class="post-actions">
-						<a href="/${encodeURI(authorSlug)}/${item.sha.slice(0,7)}" class="post-time" title="${new Intl.DateTimeFormat('zh-CN', {dateStyle: 'long', timeStyle: 'medium'}).format(date)}">${timeAgo(date)}</a>
+						<a href="/${encodeURI(authorSlug)}/${item.sha.slice(0, 7)}" class="post-time" title="${new Intl.DateTimeFormat('zh-CN', { dateStyle: 'long', timeStyle: 'medium' }).format(date)}">${timeAgo(date)}</a>
 						<button class="action-menu-btn" onclick="toggleMenu(this)">
 							<svg viewBox="0 0 24 24">
 								<circle cx="12" cy="6" r="2"/>
@@ -1312,34 +1122,26 @@
 							</div>
 						</button>
 					</div>
-					${commentHtml}
+					<div class="like-comment-section"><div class="comments-section" style="display:none"></div></div>
 				</div>
 			`;
 		}
 
-		// Toggle menu
+		function closeAllMenus() {
+			document.querySelectorAll('.action-popup').forEach(p => p.classList.remove('show'));
+			overlay.classList.remove('show');
+		}
 		window.toggleMenu = function(btn) {
 			const popup = btn.querySelector('.action-popup');
 			const isOpen = popup.classList.contains('show');
-
-			// Close all menus
-			document.querySelectorAll('.action-popup').forEach(p => p.classList.remove('show'));
-			overlay.classList.remove('show');
-
-			if (!isOpen) {
-				popup.classList.add('show');
-				overlay.classList.add('show');
-			}
+			closeAllMenus();
+			if (!isOpen) { popup.classList.add('show'); overlay.classList.add('show'); }
 		};
 
-		// Handle comment
 		window.handleComment = function(event, sha) {
 			event.stopPropagation();
-			// Close menu
-			document.querySelectorAll('.action-popup').forEach(p => p.classList.remove('show'));
-			overlay.classList.remove('show');
-
-			const postEl = document.getElementById(`post-${sha}`);
+			closeAllMenus();
+			const postEl = $(`post-${sha}`);
 			if (!postEl) return;
 			const section = postEl.querySelector('.like-comment-section');
 			const commentsSection = section.querySelector('.comments-section');
@@ -1378,30 +1180,22 @@
 			commentsSection.querySelector('.comment-name').focus();
 		};
 
-		// Submit comment
 		window.submitComment = async function(sha) {
-			const postEl = document.getElementById(`post-${sha}`);
-			if (!postEl) return;
-			const form = postEl.querySelector('.comment-form');
+			const postEl = $(`post-${sha}`);
+			const form = postEl?.querySelector('.comment-form');
 			if (!form) return;
-
 			const name = form.querySelector('.comment-name').value.trim();
 			const text = form.querySelector('.comment-textarea').value.trim();
 			const link = form.querySelector('.comment-link').value.trim();
 			const email = form.querySelector('.comment-email').value.trim();
-
 			if (!name) { alert('请填写名字'); form.querySelector('.comment-name').focus(); return; }
 			if (!text) { alert('请填写评论内容'); form.querySelector('.comment-textarea').focus(); return; }
-
-			// 保存到本地
 			localStorage.setItem('cmt_name', name);
 			if (link) localStorage.setItem('cmt_link', link);
 			if (email) localStorage.setItem('cmt_email', email);
-
 			const btn = form.querySelector('.comment-submit');
 			btn.disabled = true;
 			btn.textContent = '发送中...';
-
 			try {
 				const resp = await fetch(`/.cmts?id=${sha}`, {
 					method: 'POST',
@@ -1410,229 +1204,125 @@
 				});
 				const data = await resp.json();
 				if (resp.ok && data.success) {
-					// 追加评论到列表
-					const commentsSection = postEl.querySelector('.comments-section');
-					const commentHtml = renderCommentItem(data.comment);
-					form.insertAdjacentHTML('beforebegin', commentHtml);
-					// 清空内容，保留名字等
+					form.insertAdjacentHTML('beforebegin', renderCommentItem(data.comment));
 					form.querySelector('.comment-textarea').value = '';
-					btn.disabled = false;
-					btn.textContent = '发送';
-				} else {
-					alert(data.error || '评论失败');
-					btn.disabled = false;
-					btn.textContent = '发送';
-				}
-			} catch (e) {
-				alert('网络错误');
-				btn.disabled = false;
-				btn.textContent = '发送';
-			}
+				} else alert(data.error || '评论失败');
+			} catch { alert('网络错误'); }
+			finally { btn.disabled = false; btn.textContent = '发送'; }
 		};
 
-		// Render a single comment item
 		function renderCommentItem(c) {
 			const nameHtml = c.link
 				? `<a class="comment-author" href="${sh(c.link)}" target="_blank" rel="noopener nofollow ugc">${sh(c.name)}</a>`
 				: `<span class="comment-author">${sh(c.name)}</span>`;
-			return `
-				<div class="comment-item">
-					${nameHtml}
-					<span class="comment-text">${sh(c.text)}</span>
-					<span class="comment-time">${formatTime(c.ts)}</span>
-				</div>
-			`;
+			return `<div class="comment-item">${nameHtml} <span class="comment-text">${sh(c.text)}</span> <span class="comment-time">${formatTime(c.ts)}</span></div>`;
 		}
 
-		// Click overlay to close menu
-		overlay.addEventListener('click', function() {
-			document.querySelectorAll('.action-popup').forEach(p => p.classList.remove('show'));
-			overlay.classList.remove('show');
-		});
+		overlay.addEventListener('click', closeAllMenus);
 
-		// Image preview
-		document.addEventListener('click', function(e) {
+		document.addEventListener('click', e => {
 			const imageItem = e.target.closest('.image-item');
-			if (imageItem) {
-				const src = imageItem.dataset.src;
-				previewImage.src = src;
-				imagePreview.classList.add('show');
-			}
-
-			if (e.target === imagePreview) {
-				imagePreview.classList.remove('show');
-			}
+			if (imageItem) { previewImage.src = imageItem.dataset.src; imagePreview.classList.add('show'); }
+			if (e.target === imagePreview) imagePreview.classList.remove('show');
 		});
 
-		// Pagination
-		window.goPrevPage = function() {
-			if (currentPage > 0) {
-				loadPage(currentPage - 1);
-				window.scrollTo(0, 0);
-			}
-		};
+		window.goPrevPage = () => { if (currentPage > 0) { loadPage(currentPage - 1); scrollTo(0, 0); } };
+		window.goNextPage = () => { loadPage(currentPage + 1); scrollTo(0, 0); };
+		window.refreshCurrentPage = () => { loadPage(currentPage); scrollTo(0, 0); };
 
-		window.goNextPage = function() {
-			loadPage(currentPage + 1);
-			window.scrollTo(0, 0);
-		};
+		addEventListener('scroll', () => navBar.classList.toggle('scrolled', scrollY > 200));
 
-		window.refreshCurrentPage = function() {
-			loadPage(currentPage);
-			window.scrollTo(0, 0);
-		};
-
-		// Scroll listener for nav bar
-		window.addEventListener('scroll', function() {
-			if (window.scrollY > 200) {
-				navBar.classList.add('scrolled');
-			} else {
-				navBar.classList.remove('scrolled');
-			}
-		});
-
-		// Modal functionality
 		function getOAuthUrl() {
 			const state = crypto.randomUUID();
 			document.cookie = `oauth_state=${state}; Path=/; Secure; SameSite=Strict; Max-Age=600`;
 			return `https://github.com/login/oauth/authorize?scope=public_repo&client_id=Ov23lirVyDKVPnHhDOFw&state=${state}`;
 		}
-
-		function getCookie(cookie_str, name) {
-			return decodeURIComponent(cookie_str || '')
-				.split(";")
-				.find(row => row.trim().startsWith(name + "="))
-				?.split("=")[1]?.trim() || '';
-		}
+		const getCookie = (str, name) => decodeURIComponent(str || '').split(';').find(r => r.trim().startsWith(name + '='))?.split('=')[1]?.trim() || '';
 
 		function openModal() {
 			if (getCookie(document.cookie, 'logged_in')) {
 				btnPost.innerText = '发送';
 				inputTweet.disabled = false;
-				inputTweet.placeholder = "内容以 : 结尾可显示图片";
+				inputTweet.placeholder = '内容以 : 结尾可显示图片';
 				updateImagePreview();
 			} else {
 				inputTweet.value = '';
-				inputTweet.placeholder = `Login and make a tweet via Github REST API.
-
-Or you can post a tweet locally, clone the repo and
-git commit --allow-empty && git push
-
-This OAuth login will save an access_token into your browser cookie
-The default and minimal required scope is public_repo
-`;
+				inputTweet.placeholder = 'Login and make a tweet via Github REST API.\n\nOr you can post a tweet locally, clone the repo and\ngit commit --allow-empty && git push\n\nThis OAuth login will save an access_token into your browser cookie\nThe default and minimal required scope is public_repo\n';
 				inputTweet.disabled = true;
 				btnPost.innerText = 'Login';
 			}
 			composeModal.style.display = 'block';
 		}
-
 		function closeModal(skipConfirm) {
-			const hasContent = inputTweet.value.trim() !== '' || selectedImages.length > 0;
-			if (!skipConfirm && hasContent && !confirm('内容尚未发布，确定关闭吗？')) {
-				return;
-			}
+			if (!skipConfirm && (inputTweet.value.trim() || selectedImages.length) && !confirm('内容尚未发布，确定关闭吗？')) return;
 			inputTweet.value = '';
 			inputTweet.placeholder = "What's up?";
 			composeModal.style.display = 'none';
-			// 清理图片选择状态
+			clearSelectedImages();
+		}
+		function clearSelectedImages() {
 			selectedImages.forEach(img => URL.revokeObjectURL(img.url));
 			selectedImages = [];
 			updateImagePreview();
 		}
 
-		// 图片选择功能
-		let selectedImages = []; // 存储 {file, url, filename} 对
+		let selectedImages = [];
 		const MAX_IMAGES = 9;
-		const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+		const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
-		const imagePreviewGrid = document.getElementById('imagePreviewGrid');
-		const imageCount = document.getElementById('imageCount');
-		const clientCompressCheckbox = document.getElementById('clientCompress');
-		let compressModulePromise = null;
+		const imagePreviewGrid = $('imagePreviewGrid');
+		const imageCount = $('imageCount');
+		const clientCompressCheckbox = $('clientCompress');
 
 		async function prepareImageFile(file) {
 			let processed = file;
 			if (clientCompressCheckbox.checked) {
-				console.log('[select] compressing', file.name || 'clipboard-image');
-				const {compressImage} = await import('/static/compress-image.js');
+				const { compressImage } = await import('/static/compress-image.js');
 				processed = await compressImage(file);
-				console.log('[select] done', processed.type, processed.size);
 			}
-
 			const url = URL.createObjectURL(processed);
 			let filename = generateFilename(file);
-			if (processed.type && processed.type !== file.type) {
-				const ext = processed.type.split('/')[1];
-				filename = filename.replace(/\.[^.]+$/, '.' + ext);
+			if (processed.type !== file.type) {
+				filename = filename.replace(/\.[^.]+$/, '.' + processed.type.split('/')[1]);
 			}
 			return { file: processed, url, filename };
 		}
-		const fileInput = document.createElement('input');
-		fileInput.type = 'file';
-		fileInput.accept = 'image/*';
-		fileInput.multiple = true;
+		const fileInput = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/*', multiple: true });
 		fileInput.style.display = 'none';
 		document.body.appendChild(fileInput);
 
-		// 生成文件名：MMDD-{seq}.{ext}
 		function generateFilename(file) {
 			const now = new Date();
-			const month = String(now.getMonth() + 1).padStart(2, '0');
-			const day = String(now.getDate()).padStart(2, '0');
+			const mm = String(now.getMonth() + 1).padStart(2, '0');
+			const dd = String(now.getDate()).padStart(2, '0');
 			const seq = String(selectedImages.length + 1).padStart(3, '0');
-			const ext = file.name.split('.').pop() || 'jpg';
-			return `${month}${day}-${seq}.${ext}`;
+			return `${mm}${dd}-${seq}.${(file.name.split('.').pop() || 'jpg')}`;
 		}
 
-		// 文件选择处理
-		fileInput.addEventListener('change', async function(e) {
-			const files = Array.from(e.target.files);
+		async function addImageFiles(files) {
 			if (!files.length) return;
-
 			const remaining = MAX_IMAGES - selectedImages.length;
-			if (remaining <= 0) {
-				alert(`最多选择 ${MAX_IMAGES} 张图片`);
-				fileInput.value = '';
-				return;
-			}
-
+			if (remaining <= 0) { alert(`最多选择 ${MAX_IMAGES} 张图片`); return false; }
 			let added = 0;
 			for (const file of files) {
 				if (added >= remaining) break;
-
-				// 验证文件类型
-				if (!file.type.startsWith('image/')) {
-					alert(`${file.name} 不是图片文件`);
-					continue;
-				}
-
-				// 验证文件大小
-				if (file.size > MAX_FILE_SIZE) {
-					alert(`${file.name} 超过 5MB 限制`);
-					continue;
-				}
-
-				// 压缩（可选）
-				const item = await prepareImageFile(file);
-				selectedImages.push(item);
+				if (!file.type.startsWith('image/')) { alert(`${file.name} 不是图片文件`); continue; }
+				if (file.size > MAX_FILE_SIZE) { alert(`${file.name} 超过 5MB 限制`); continue; }
+				selectedImages.push(await prepareImageFile(file));
 				added++;
 			}
-
-			if (files.length > remaining) {
-				alert(`已达上限，只添加了前 ${remaining} 张`);
-			}
-
+			if (files.length > remaining) alert(`已达上限，只添加了前 ${remaining} 张`);
 			updateImagePreview();
-			fileInput.value = ''; // 重置 input
-		});
-
-		// 触发文件选择
-		function triggerFileSelect() {
-			fileInput.click();
+			return true;
 		}
 
-		// 移除图片
+		fileInput.addEventListener('change', async e => {
+			const files = Array.from(e.target.files);
+			await addImageFiles(files);
+			fileInput.value = '';
+		});
+
+		function triggerFileSelect() { fileInput.click(); }
 		function removeImage(index) {
 			URL.revokeObjectURL(selectedImages[index].url);
 			selectedImages.splice(index, 1);
@@ -1641,207 +1331,90 @@ The default and minimal required scope is public_repo
 		window.removeImage = removeImage;
 		window.triggerFileSelect = triggerFileSelect;
 
-		// 粘贴图片支持
-		document.getElementById('inputTweet').addEventListener('paste', async function(e) {
-			const items = Array.from(e.clipboardData?.items || []);
-			const imageItems = items.filter(item => item.type.startsWith('image/'));
-			if (imageItems.length === 0) return;
-
+		inputTweet.addEventListener('paste', async e => {
+			const items = Array.from(e.clipboardData?.items || []).filter(i => i.type.startsWith('image/'));
+			if (!items.length) return;
 			e.preventDefault();
 			const remaining = MAX_IMAGES - selectedImages.length;
-			if (remaining <= 0) {
-				alert(`最多选择 ${MAX_IMAGES} 张图片`);
-				return;
-			}
-
+			if (remaining <= 0) { alert(`最多选择 ${MAX_IMAGES} 张图片`); return; }
 			let added = 0;
-			for (const item of imageItems) {
+			for (const item of items) {
 				if (added >= remaining) break;
 				const file = item.getAsFile();
 				if (!file) continue;
-
-				const item = await prepareImageFile(file);
-				selectedImages.push(item);
+				selectedImages.push(await prepareImageFile(file));
 				added++;
 			}
-
-			if (imageItems.length > remaining) {
-				alert(`已达上限，只添加了前 ${remaining} 张`);
-			}
-
+			if (items.length > remaining) alert(`已达上限，只添加了前 ${remaining} 张`);
 			updateImagePreview();
 		});
 
-		// 更新预览网格
+		function makeAddBtn() {
+			const btn = document.createElement('div');
+			btn.id = 'addImageBtn';
+			btn.className = 'add-image-btn';
+			btn.onclick = triggerFileSelect;
+			btn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>';
+			return btn;
+		}
 		function updateImagePreview() {
 			const count = selectedImages.length;
-
-			// 清空网格
 			imagePreviewGrid.innerHTML = '';
-
-			// 更新列数类名
 			imagePreviewGrid.className = 'image-preview-grid';
 			if (count === 0) {
 				imageCount.textContent = '';
 				imagePreviewGrid.classList.add('cols-1');
-				// 显示添加按钮
-				const addBtn = document.createElement('div');
-				addBtn.id = 'addImageBtn';
-				addBtn.className = 'add-image-btn';
-				addBtn.onclick = triggerFileSelect;
-				addBtn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>`;
-				imagePreviewGrid.appendChild(addBtn);
+				imagePreviewGrid.appendChild(makeAddBtn());
 				return;
 			}
-			if (count === 1) imagePreviewGrid.classList.add('cols-1');
-			else if (count === 2) imagePreviewGrid.classList.add('cols-2');
-			else if (count === 3) imagePreviewGrid.classList.add('cols-3');
-			else if (count === 4) imagePreviewGrid.classList.add('cols-4');
-			else if (count <= 6) imagePreviewGrid.classList.add('cols-6');
-			else if (count <= 9) imagePreviewGrid.classList.add('cols-9');
-
-			// 添加预览项
+			const colClass = count === 1 ? 'cols-1' : count === 2 ? 'cols-2' : count === 3 ? 'cols-3' : count === 4 ? 'cols-4' : count <= 6 ? 'cols-6' : 'cols-9';
+			imagePreviewGrid.classList.add(colClass);
 			selectedImages.forEach((img, index) => {
 				const item = document.createElement('div');
 				item.className = 'preview-item';
-				item.innerHTML = `
-					<img src="${img.url}" alt="预览">
-					<button class="remove-btn" onclick="removeImage(${index})">&times;</button>
-				`;
+				item.innerHTML = `<img src="${img.url}" alt="预览"><button class="remove-btn" onclick="removeImage(${index})">&times;</button>`;
 				imagePreviewGrid.appendChild(item);
 			});
-
-			// 添加 + 按钮（与预览图同一行）
-			if (count < 9) {
-				const addBtn = document.createElement('div');
-				addBtn.id = 'addImageBtn';
-				addBtn.className = 'add-image-btn';
-				addBtn.onclick = triggerFileSelect;
-				addBtn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>`;
-				imagePreviewGrid.appendChild(addBtn);
-			}
-
-			// 更新数量指示器
-			imageCount.textContent = `${count}/9`;
+			if (count < MAX_IMAGES) imagePreviewGrid.appendChild(makeAddBtn());
+			imageCount.textContent = `${count}/${MAX_IMAGES}`;
 		}
 
-		// Close modal when clicking outside
-		window.addEventListener('click', function(event) {
-			if (event.target == composeModal) {
-				closeModal();
-			}
-		});
+		addEventListener('click', e => { if (e.target === composeModal) closeModal(); });
+		addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
-		window.addEventListener('keydown', function(event) {
-			if (event.key === 'Escape') {
-				closeModal();
-			}
-		});
-
-		// Post button handler
-		btnPost.addEventListener('click', async function() {
+		btnPost.addEventListener('click', async () => {
 			const text = inputTweet.value.trim();
-
-			if (!getCookie(document.cookie, 'logged_in')) {
-				location.href = getOAuthUrl();
-				return;
-			}
-
-			if (selectedImages.length === 0 && !text) {
-				inputTweet.placeholder = 'Type something here!';
-				return;
-			}
-
+			if (!getCookie(document.cookie, 'logged_in')) { location.href = getOAuthUrl(); return; }
+			if (!selectedImages.length && !text) { inputTweet.placeholder = 'Type something here!'; return; }
 			btnPost.innerText = '发送中...';
 			btnPost.disabled = true;
-
 			try {
 				const formData = new FormData();
 				formData.append('repo', REPO);
 				formData.append('message', text);
 				formData.append('client_compress', clientCompressCheckbox.checked ? '1' : '0');
-
-				if (selectedImages.length > 0) {
-					for (let i = 0; i < selectedImages.length; i++) {
-						formData.append('images', selectedImages[i].file, selectedImages[i].filename);
-					}
-				}
-
-				btnPost.innerText = '发送中...';
-				const r1 = await fetch('/.new_post', {
-					method: 'POST',
-					credentials: 'include',
-					body: formData
-				});
-
-				const result = await r1.json();
-				if (result.error) {
-					throw new Error(result.error);
-				}
-
+				for (const img of selectedImages) formData.append('images', img.file, img.filename);
+				const result = await (await fetch('/.new_post', { method: 'POST', credentials: 'include', body: formData })).json();
+				if (result.error) throw new Error(result.error);
 				closeModal(true);
-				// 清理预览
-				selectedImages.forEach(img => URL.revokeObjectURL(img.url));
-				selectedImages = [];
-				updateImagePreview();
-
-				// 重置并重新加载
 				displayedPages = [];
 				loadedBuffer = [];
 				currentPage = 0;
 				loadPage(0);
-			} catch (e) {
-				alert('发送失败: ' + e.message);
-			} finally {
-				btnPost.innerText = '发送';
-				btnPost.disabled = false;
-			}
+			} catch (e) { alert('发送失败: ' + e.message); }
+			finally { btnPost.innerText = '发送'; btnPost.disabled = false; }
 		});
 
-		// 拖拽上传支持
 		const modalContent = document.querySelector('.modal-content');
-
-		modalContent.addEventListener('dragover', (e) => {
-			e.preventDefault();
-			e.stopPropagation();
-			modalContent.style.borderColor = '#174b73';
-		});
-
-		modalContent.addEventListener('dragleave', (e) => {
-			e.preventDefault();
-			e.stopPropagation();
-			modalContent.style.borderColor = '';
-		});
-
-		modalContent.addEventListener('drop', (e) => {
-			e.preventDefault();
-			e.stopPropagation();
-			modalContent.style.borderColor = '';
-
+		modalContent.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); modalContent.style.borderColor = '#174b73'; });
+		modalContent.addEventListener('dragleave', e => { e.preventDefault(); e.stopPropagation(); modalContent.style.borderColor = ''; });
+		modalContent.addEventListener('drop', e => {
+			e.preventDefault(); e.stopPropagation(); modalContent.style.borderColor = '';
 			const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
-			if (files.length > 0) {
-				(async () => {
-					for (const file of files) {
-						if (selectedImages.length >= 9) break;
-						if (file.size > MAX_FILE_SIZE) {
-							alert(`${file.name} 超过 5MB 限制`);
-							continue;
-						}
-const prepared = await prepareImageFile(file);
-				selectedImages.push(prepared);
-					}
-					updateImagePreview();
-				})();
-			}
+			if (files.length) (async () => { for (const f of files) { if (selectedImages.length >= MAX_IMAGES) break; if (f.size > MAX_FILE_SIZE) { alert(`${f.name} 超过 5MB 限制`); continue; } selectedImages.push(await prepareImageFile(f)); } updateImagePreview(); })();
 		});
 
-		// Initialize
-		document.addEventListener('DOMContentLoaded', function() {
-			parseUrl();
-			loadOwnerInfo();
-			loadPage(0);
-			updateImagePreview(); // 初始化图片上传按钮
-		});
+		document.addEventListener('DOMContentLoaded', () => { parseUrl(); loadOwnerInfo(); loadPage(0); updateImagePreview(); });
 	</script>
 </body>
 </html>
