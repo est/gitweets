@@ -7,3 +7,5 @@ docs
 test_*.mjs
 *.sublime-*
 .wrangler
+.tmp
+node_modules/
