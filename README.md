@@ -30,7 +30,7 @@ Post images: commit along with image files under `./static` path. The commit mes
 ### 本地命令行 Locally ：
 
 * 发文本 posting text: `make post "blah"`
-* 发图片 posting pics: `make post "some pics:" static/2023/1015-01.webp`
+* 发图片 posting pics: `make post-img "some pics:" uploads/2023/1015-01.webp`
 * 看 see history `make timeline`
 
 ### Via Github API
@@ -41,16 +41,43 @@ Post images: commit along with image files under `./static` path. The commit mes
 
 ## 待办 ToDo:
 
+
+
+* [ ] 把 functions 改成 /api/ 这样比较统一？
+* [ ] 用isomorphic-git支持任意 git http；CF 图片处理。
+* [ ] 浏览器发起REST API，看是否能避免莫名其妙的 400 错误；CF作为 failback
+* [ ] 把 github 的REST API抽到 github.reader.js 和 github.writer.js 
+* [ ] 引用 card。渲染 x/mstn/bsky 的帖子
+* [ ] 评论允许 github 登录
+* [ ] 邮件提醒回复
+
+
+### Maybe
+
 * [ ] 多repo通过localStorag切换。并且记住上一次的
 * [ ] Github app for single-repo access
-* [ ] post images in browser
-* [ ] 移动端响应式布局 🤣
 * [ ] 视频、音频控件 video and audios
 * [ ] 网址 microformats 支持卡片
 * [ ] non-github API 支持：gitlab等
-* [ ] 本地 make 静态页面
-* [ ] `make delete` 方法
-* [ ] fix long text
+
+
+
+
+### Done
+
+* [X] 引入服务端 avif 压缩
+* [X] 改名 CloudSettler
+* [X] 用 git notes 实现点赞和评论
+* [X] 处理内容里 网址链接 的问题
+* [X] pica 输出的图片无法强制为 avif
+* [X] 发推 popup 里多个图片 滚动条导致看不见 添加图片按钮
+* [X] 本地 make ~~静态页面~~ 丰富
+* [X] `make delete` 方法
+* [X] fix long text
+* [X] 评论检测bot
+* [X] 评论管理
+* [X] post images in browser
+* [X] 移动端响应式布局 🤣
 * [X] 翻页 API
 * [X] ~~[verifications](https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification)~~
 * [X] ~~404.html for single-page-app routing~~
