@@ -25,58 +25,12 @@
    - 一个功能一个提交就够了
    - 使用 `git rebase -i` 或 `git reset --soft` 来 squash 提交
 
-## 正确的工作流程
+## 开发分支工作流
 
-### 1. 开发分支工作流
+dev 分支是长期分支，不要删除！
+main 分支把新功能 squash进去；
+main 分支可能有别的提交，所以 dev 分支要主动 merge main。这样以后才能继续向main squash merge。
 
-**重要：dev 分支是长期分支，不要删除！**
-
-```bash
-# 切换到 dev 分支
-git checkout dev
-
-# 开发功能
-# ...
-
-# 测试没问题后，squash 成一个提交
-git reset --soft main
-git commit -m "feat: 功能描述"
-
-# 合并到 main（使用 --squash 只产生 1 个 commit）
-git checkout main
-git merge --squash dev
-git commit -m "feat: 功能描述"
-
-# 切换回 dev 继续开发
-git checkout dev
-```
-
-**永远不要删除 dev 分支！**
-
-**永远不要在 main 分支直接开发！所有修改都在 dev 分支进行！**
-
-### 2. 代码验证
-
-```bash
-# 验证 HTML 结构
-curl -s http://localhost:8000/ | grep "关键元素"
-
-# 验证 CSS 样式
-curl -s http://localhost:8000/ | grep -A 10 "选择器 {"
-
-# 验证 JavaScript 函数
-curl -s http://localhost:8000/ | grep -A 20 "function name"
-```
-
-### 3. 提交规范
-
-```
-feat: 新功能
-fix: 修复 bug
-refactor: 重构
-docs: 文档
-style: 样式调整
-```
 
 ## 技术要点
 
@@ -91,27 +45,6 @@ style: 样式调整
 - 使用 `URL.createObjectURL()` 创建预览
 - 使用 `URL.revokeObjectURL()` 清理内存
 - Canvas 压缩图片时，PNG 保持透明背景需要 `ctx.clearRect()`
-
-### GitHub API
-
-- 使用 `/git/blobs` 上传文件
-- 使用 `/git/trees` 创建树
-- 使用 `/git/commits` 创建提交
-- 使用 `/git/refs/heads/{branch}` 更新分支
-
-## 调试技巧
-
-1. **检查 HTML 结构**：`curl -s URL | grep "元素"`
-2. **检查 CSS 样式**：`curl -s URL | grep -A N "选择器 {"`
-3. **检查 JavaScript**：`curl -s URL | grep -A N "function name"`
-4. **查看提交历史**：`git log --oneline --graph`
-
-## 注意事项
-
-1. **文件编码**：使用 UTF-8
-2. **行尾符**：使用 LF（Unix 格式）
-3. **缩进**：使用 Tab 或空格（保持一致）
-4. **注释**：中文注释即可
 
 ## 部署
 

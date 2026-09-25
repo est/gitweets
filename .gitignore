@@ -7,4 +7,8 @@ docs
 test_*.mjs
 *.sublime-*
 .wrangler
-node_modules
+<<<<<<< HEAD
+.tmp
+node_modules/
+=======
+>>>>>>> main
