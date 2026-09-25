@@ -27,9 +27,15 @@
 
 ## 开发分支工作流
 
-dev 分支是长期分支，不要删除！
-main 分支把新功能 squash进去；
-main 分支可能有别的提交，所以 dev 分支要主动 merge main。这样以后才能继续向main squash merge。
+- 长期分支：`dev`，不要删除；所有开发在 `dev` 上，永远不要直接改 `main`
+- 动手前：`git checkout dev`，`git fetch origin`，确认分支正确
+- `main` 上有 tweet 提交（发帖即 commit）和 squash 过的代码历史，所以 `dev` 要主动 `merge main` 来同步：
+  `git checkout dev && git merge origin/main`
+- 合并方向只能是 dev ← main；**严禁 `rebase dev`、`reset --soft main`**（会重演/揉捏已合并历史，冲突爆炸）
+- dev 合并 main 出现冲突时：`index.html`、`functions/` 等代码文件以 main 为准（`git checkout --theirs -- <file>`），只保留 dev 独有的新文件和新增行
+- 新功能进 main 用 squash：`git checkout main && git merge --squash dev`，检查暂存区只有本次功能文件后提交，一个功能一个提交
+- 合完切回 `dev` 继续开发
+- `push` 必须用户明确说了才做，不擅自 push
 
 
 ## 技术要点
